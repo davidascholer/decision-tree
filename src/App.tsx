@@ -5,7 +5,7 @@ import { Button } from './components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs'
 import { Input } from './components/ui/input'
-import { Plus, Trash, List, Tree, Download, Upload, Code, Copy, Sparkle, TextAa, ArrowCounterClockwise, ArrowClockwise, Warning } from '@phosphor-icons/react'
+import { Plus, Trash, List, Tree, Download, Upload, Code, Copy, Sparkle, TextAa, ArrowCounterClockwise, ArrowClockwise, Warning, Question, DiamondsFour, CheckCircle, FlowArrow } from '@phosphor-icons/react'
 import { useState, useRef, useEffect } from 'react'
 import { TreeNodeEditor } from './components/TreeNodeEditor'
 import { Flowchart } from './components/Flowchart'
@@ -23,6 +23,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from './components/ui/alert-dialog'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from './components/ui/popover'
 
 function App() {
   const [paths, setPaths] = useKV<DecisionPath[]>('decision-paths', [])
@@ -411,7 +416,65 @@ function App() {
                   <TabsContent value="editor">
                     <Card>
                       <CardHeader>
-                        <CardTitle>{selectedPath.name}</CardTitle>
+                        <div className="flex items-center justify-between">
+                          <CardTitle>{selectedPath.name}</CardTitle>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button variant="outline" size="sm">
+                                <Question />
+                                Help
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[500px]" align="end">
+                              <div className="space-y-4">
+                                <div>
+                                  <h4 className="font-semibold text-sm mb-3">Node Types</h4>
+                                  <div className="space-y-3">
+                                    <div className="flex gap-3">
+                                      <div className="flex-shrink-0 w-8 h-8 rounded-md flex items-center justify-center" style={{ backgroundColor: 'oklch(0.70 0.15 70)' }}>
+                                        <DiamondsFour weight="fill" size={20} style={{ color: 'oklch(0.25 0.05 70)' }} />
+                                      </div>
+                                      <div className="flex-1">
+                                        <div className="font-medium text-sm">Decision</div>
+                                        <div className="text-xs text-muted-foreground">A decision point that branches based on multiple conditions. Each condition evaluates to true or false and directs the flow accordingly.</div>
+                                      </div>
+                                    </div>
+                                    
+                                    <div className="flex gap-3">
+                                      <div className="flex-shrink-0 w-8 h-8 rounded-md flex items-center justify-center" style={{ backgroundColor: 'oklch(0.65 0.18 210)' }}>
+                                        <CheckCircle weight="fill" size={20} style={{ color: 'oklch(0.25 0.05 250)' }} />
+                                      </div>
+                                      <div className="flex-1">
+                                        <div className="font-medium text-sm">Condition</div>
+                                        <div className="text-xs text-muted-foreground">A specific condition or criteria that must be evaluated. Conditions are attached to decision nodes and represent different possible paths.</div>
+                                      </div>
+                                    </div>
+                                    
+                                    <div className="flex gap-3">
+                                      <div className="flex-shrink-0 w-8 h-8 rounded-md flex items-center justify-center" style={{ backgroundColor: 'oklch(0.65 0.15 145)' }}>
+                                        <CheckCircle weight="fill" size={20} style={{ color: 'oklch(0.25 0.08 145)' }} />
+                                      </div>
+                                      <div className="flex-1">
+                                        <div className="font-medium text-sm">Outcome</div>
+                                        <div className="text-xs text-muted-foreground">A final result or action that ends a decision path. Outcomes represent the conclusion of a logical flow and do not branch further.</div>
+                                      </div>
+                                    </div>
+                                    
+                                    <div className="flex gap-3">
+                                      <div className="flex-shrink-0 w-8 h-8 rounded-md flex items-center justify-center" style={{ backgroundColor: 'oklch(0.60 0.15 290)' }}>
+                                        <FlowArrow weight="fill" size={20} style={{ color: 'oklch(0.25 0.05 290)' }} />
+                                      </div>
+                                      <div className="flex-1">
+                                        <div className="font-medium text-sm">Path Reference</div>
+                                        <div className="text-xs text-muted-foreground">A reference to another decision path. Use this to reuse existing logic or create modular decision trees that can be connected together.</div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </PopoverContent>
+                          </Popover>
+                        </div>
                       </CardHeader>
                       <CardContent>
                         <TreeNodeEditor
