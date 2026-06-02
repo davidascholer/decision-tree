@@ -121,6 +121,9 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
       .attr('stroke', 'oklch(0.45 0.15 250)')
       .attr('stroke-width', 2)
 
+    const labelBoxHeight = 32
+    const labelBoxPadding = 8
+
     linkGroup.selectAll('path')
       .data(links)
       .join('path')
@@ -129,24 +132,54 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
         const targetY = d.target.y - nodeHeight / 2
         const midY = (sourceY + targetY) / 2
         
+        const labelBoxTop = midY - labelBoxHeight / 2
+        const labelBoxBottom = midY + labelBoxHeight / 2
+        
         return `M ${d.source.x},${sourceY}
-                C ${d.source.x},${midY}
-                  ${d.target.x},${midY}
+                L ${d.source.x},${labelBoxTop}
+                M ${d.source.x},${labelBoxBottom}
+                C ${d.source.x},${(labelBoxBottom + targetY) / 2}
+                  ${d.target.x},${(labelBoxBottom + targetY) / 2}
                   ${d.target.x},${targetY}`
       })
       .attr('marker-end', 'url(#arrowhead)')
 
-    const linkLabels = g.append('g')
-      .selectAll('text')
-      .data(links)
-      .join('text')
-      .attr('font-size', 11)
-      .attr('font-weight', 500)
-      .attr('fill', 'oklch(0.45 0.15 250)')
-      .attr('text-anchor', 'middle')
-      .attr('x', d => d.target.x)
-      .attr('y', d => d.target.y - nodeHeight / 2 - 10)
-      .text(d => d.target.data.branchLabel || '')
+    const labelBoxes = g.append('g')
+      .selectAll('g')
+      .data(links.filter(d => d.target.data.branchLabel))
+      .join('g')
+      .attr('transform', d => {
+        const sourceY = d.source.y + nodeHeight / 2
+        const targetY = d.target.y - nodeHeight / 2
+        const midY = (sourceY + targetY) / 2
+        return `translate(${d.source.x},${midY})`
+      })
+
+    labelBoxes.each(function(d) {
+      const g = d3.select(this)
+      const label = d.target.data.branchLabel || ''
+      
+      const textElement = g.append('text')
+        .attr('font-size', 11)
+        .attr('font-weight', 500)
+        .attr('fill', 'oklch(0.45 0.15 250)')
+        .attr('text-anchor', 'middle')
+        .attr('dominant-baseline', 'middle')
+        .text(label)
+      
+      const bbox = (textElement.node() as SVGTextElement).getBBox()
+      const boxWidth = bbox.width + labelBoxPadding * 2
+      
+      g.insert('rect', 'text')
+        .attr('x', -boxWidth / 2)
+        .attr('y', -labelBoxHeight / 2)
+        .attr('width', boxWidth)
+        .attr('height', labelBoxHeight)
+        .attr('fill', 'oklch(0.98 0.005 250)')
+        .attr('stroke', 'oklch(0.45 0.15 250)')
+        .attr('stroke-width', 1.5)
+        .attr('rx', 4)
+    })
 
     const nodeGroup = g.append('g')
       .selectAll('g')
