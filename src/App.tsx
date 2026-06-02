@@ -9,6 +9,7 @@ import { Plus, Trash, List, Tree, Download, Upload, Code, Copy, Sparkle, TextAa 
 import { useState, useRef } from 'react'
 import { TreeNodeEditor } from './components/TreeNodeEditor'
 import { Flowchart } from './components/Flowchart'
+import { SyntaxHighlightedText } from './components/SyntaxHighlightedText'
 import { toast } from 'sonner'
 import { Toaster } from './components/ui/sonner'
 
@@ -330,9 +331,9 @@ function App() {
                       </CardHeader>
                       <CardContent>
                         <div className="relative">
-                          <pre className="bg-muted p-4 rounded-lg overflow-auto max-h-[500px] text-sm font-mono whitespace-pre">
-                            {generateTextRepresentation(selectedPath.node, currentPaths)}
-                          </pre>
+                          <div className="bg-muted p-4 rounded-lg overflow-auto max-h-[500px]">
+                            <SyntaxHighlightedText node={selectedPath.node} paths={currentPaths} />
+                          </div>
                         </div>
                       </CardContent>
                     </Card>
