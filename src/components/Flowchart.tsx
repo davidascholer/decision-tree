@@ -3,7 +3,14 @@ import { useEffect, useRef, useState } from 'react'
 import { Button } from './ui/button'
 import { Switch } from './ui/switch'
 import { Label } from './ui/label'
-import { Plus, Minus, ArrowsOut } from '@phosphor-icons/react'
+import { Plus, Minus, ArrowsOut, Image as ImageIcon, FileCode, Download } from '@phosphor-icons/react'
+import { toast } from 'sonner'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from './ui/dropdown-menu'
 
 interface FlowchartProps {
   paths: DecisionPath[]
@@ -571,6 +578,204 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
     setPan({ x: 0, y: 0 })
   }
 
+  const handleExportPNG = () => {
+    const canvas = canvasRef.current
+    if (!canvas || !selectedPath) return
+
+    const exportCanvas = document.createElement('canvas')
+    const exportCtx = exportCanvas.getContext('2d')
+    if (!exportCtx) return
+
+    const nodes = getAllNodes(selectedPath, paths)
+    
+    let minX = Infinity, minY = Infinity
+    let maxX = -Infinity, maxY = -Infinity
+    
+    nodes.forEach(node => {
+      minX = Math.min(minX, node.x - node.width / 2)
+      maxX = Math.max(maxX, node.x + node.width / 2)
+      minY = Math.min(minY, node.y - node.height / 2)
+      maxY = Math.max(maxY, node.y + node.height / 2)
+    })
+
+    const padding = 50
+    const width = maxX - minX + padding * 2
+    const height = maxY - minY + padding * 2
+
+    exportCanvas.width = width
+    exportCanvas.height = height
+
+    exportCtx.fillStyle = 'oklch(0.98 0.005 250)'
+    exportCtx.fillRect(0, 0, width, height)
+
+    const offsetX = -minX + padding
+    const offsetY = -minY + padding
+
+    const connections = getAllConnections(selectedPath, paths)
+
+    connections.forEach(conn => {
+      drawConnection(exportCtx, conn, offsetX, offsetY)
+    })
+
+    nodes.forEach(node => {
+      drawNode(exportCtx, node, offsetX, offsetY)
+    })
+
+    exportCanvas.toBlob((blob) => {
+      if (!blob) return
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `flowchart-${selectedPath.name.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}.png`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+      toast.success('Flowchart exported as PNG')
+    })
+  }
+
+  const handleExportSVG = () => {
+    if (!selectedPath) return
+
+    const nodes = getAllNodes(selectedPath, paths)
+    const connections = getAllConnections(selectedPath, paths)
+    
+    let minX = Infinity, minY = Infinity
+    let maxX = -Infinity, maxY = -Infinity
+    
+    nodes.forEach(node => {
+      minX = Math.min(minX, node.x - node.width / 2)
+      maxX = Math.max(maxX, node.x + node.width / 2)
+      minY = Math.min(minY, node.y - node.height / 2)
+      maxY = Math.max(maxY, node.y + node.height / 2)
+    })
+
+    const padding = 50
+    const width = maxX - minX + padding * 2
+    const height = maxY - minY + padding * 2
+    const offsetX = -minX + padding
+    const offsetY = -minY + padding
+
+    let svg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+  <defs>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600&amp;family=Inter:wght@500&amp;display=swap');
+    </style>
+  </defs>
+  <rect width="100%" height="100%" fill="oklch(0.98 0.005 250)"/>
+  <g id="connections">\n`
+
+    connections.forEach(conn => {
+      const fromX = conn.from.x + offsetX
+      const fromY = conn.from.y + offsetY + conn.from.height / 2
+      const toX = conn.to.x + offsetX
+      const toY = conn.to.y + offsetY - conn.to.height / 2
+
+      let path = `M ${fromX} ${fromY} `
+
+      if (conn.from.type === 'decision' && conn.to.type === 'condition') {
+        const controlPointOffset = Math.abs(toX - fromX) * 0.3
+        path += `C ${fromX} ${fromY + controlPointOffset}, ${toX} ${toY - controlPointOffset}, ${toX} ${toY}`
+      } else if (conn.from.type === 'condition') {
+        path += `C ${fromX} ${fromY + (toY - fromY) / 3}, ${toX} ${toY - (toY - fromY) / 3}, ${toX} ${toY}`
+      } else {
+        path += `C ${fromX} ${fromY + (toY - fromY) / 3}, ${toX} ${toY - (toY - fromY) / 3}, ${toX} ${toY}`
+      }
+
+      svg += `    <path d="${path}" stroke="oklch(0.55 0.10 220)" stroke-width="3" fill="none" stroke-linecap="round"/>\n`
+    })
+
+    svg += `  </g>
+  <g id="nodes">\n`
+
+    nodes.forEach(node => {
+      const x = node.x + offsetX
+      const y = node.y + offsetY
+      const config = NODE_CONFIG[node.type]
+
+      const rectX = x - node.width / 2
+      const rectY = y - node.height / 2
+
+      svg += `    <g>
+      <rect x="${rectX}" y="${rectY}" width="${node.width}" height="${node.height}" rx="${config.borderRadius}" 
+            fill="${config.color}" stroke="${config.borderColor}" stroke-width="3"
+            filter="drop-shadow(0 2px 10px ${config.shadowColor})"/>
+      <text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="middle" 
+            fill="${config.textColor}" font-family="Space Grotesk, sans-serif" font-size="14" font-weight="600">\n`
+
+      const maxWidth = node.width - 20
+      const lines = wrapTextForSVG(node.label, maxWidth)
+      const lineHeight = 18
+      const totalHeight = lines.length * lineHeight
+      const startY = y - totalHeight / 2 + lineHeight / 2
+
+      lines.forEach((line, i) => {
+        svg += `        <tspan x="${x}" y="${startY + i * lineHeight}">${escapeXml(line)}</tspan>\n`
+      })
+
+      svg += `      </text>\n`
+
+      if (node.type === 'path-reference') {
+        svg += `      <text x="${x}" y="${y + node.height / 2 - 12}" text-anchor="middle" 
+              fill="oklch(0.85 0 0)" font-family="Inter, sans-serif" font-size="10" font-weight="500">→ Path Reference</text>\n`
+      }
+
+      svg += `    </g>\n`
+    })
+
+    svg += `  </g>
+</svg>`
+
+    const blob = new Blob([svg], { type: 'image/svg+xml' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `flowchart-${selectedPath.name.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}.svg`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+    toast.success('Flowchart exported as SVG')
+  }
+
+  const wrapTextForSVG = (text: string, maxWidth: number): string[] => {
+    const words = text.split(' ')
+    const lines: string[] = []
+    let currentLine = ''
+
+    const canvas = document.createElement('canvas')
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return [text]
+    ctx.font = '600 14px Space Grotesk, sans-serif'
+
+    words.forEach(word => {
+      const testLine = currentLine ? `${currentLine} ${word}` : word
+      const metrics = ctx.measureText(testLine)
+      
+      if (metrics.width <= maxWidth) {
+        currentLine = testLine
+      } else {
+        if (currentLine) lines.push(currentLine)
+        currentLine = word
+      }
+    })
+    
+    if (currentLine) lines.push(currentLine)
+    
+    return lines.slice(0, 3)
+  }
+
+  const escapeXml = (text: string): string => {
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&apos;')
+  }
+
   return (
     <div 
       ref={containerRef}
@@ -590,6 +795,30 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
       </div>
       
       <div className="absolute top-4 right-4 flex gap-2">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              size="sm"
+              variant="secondary"
+              title="Export Flowchart"
+              className="shadow-lg"
+            >
+              <Download />
+              Export
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={handleExportPNG}>
+              <ImageIcon className="mr-2" />
+              Export as PNG
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleExportSVG}>
+              <FileCode className="mr-2" />
+              Export as SVG
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        
         <Button
           size="sm"
           variant="secondary"
