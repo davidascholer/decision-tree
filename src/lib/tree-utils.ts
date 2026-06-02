@@ -14,6 +14,11 @@ export function findNodeById(node: TreeNode, id: string): TreeNode | null {
     }
   }
   
+  if (node.type === 'condition') {
+    const found = findNodeById(node.node, id)
+    if (found) return found
+  }
+  
   return null
 }
 
@@ -51,6 +56,8 @@ export function hasCircularReference(
       for (const branch of node.branches) {
         if (checkNode(branch.node)) return true
       }
+    } else if (node.type === 'condition') {
+      return checkNode(node.node)
     }
     return false
   }
@@ -70,6 +77,13 @@ export function updateNodeInTree(node: TreeNode, id: string, updater: (node: Tre
         ...branch,
         node: updateNodeInTree(branch.node, id, updater)
       }))
+    }
+  }
+  
+  if (node.type === 'condition') {
+    return {
+      ...node,
+      node: updateNodeInTree(node.node, id, updater)
     }
   }
   
@@ -100,130 +114,125 @@ export function deleteNodeFromTree(node: TreeNode, branchId: string): TreeNode |
 }
 
 export function createExamplePaths(): DecisionPath[] {
-  const targetPathId = generateId()
-  const mainPathId = generateId()
+  const approvalPathId = generateId()
+  const requestProcessingId = generateId()
+  const routingLogicId = generateId()
   
-  const targetPath: DecisionPath = {
-    id: targetPathId,
-    name: 'Final Destination Path',
+  const approvalPath: DecisionPath = {
+    id: approvalPathId,
+    name: 'Approval Workflow',
     node: {
       id: generateId(),
       type: 'decision',
-      question: 'Final verification step',
-      branches: [
-        {
+      question: 'Does request require manager approval?',
+      branches: [{
+        id: generateId(),
+        label: 'Yes',
+        node: {
           id: generateId(),
-          label: 'Verified',
+          type: 'condition',
+          label: 'Approved',
           node: {
             id: generateId(),
             type: 'outcome',
-            description: 'Process completed successfully!'
-          }
-        },
-        {
-          id: generateId(),
-          label: 'Failed',
-          node: {
-            id: generateId(),
-            type: 'outcome',
-            description: 'Verification failed - review required'
+            description: 'Request approved and forwarded to fulfillment team'
           }
         }
-      ]
+      }]
     }
   }
   
-  const mainPath: DecisionPath = {
-    id: mainPathId,
-    name: 'Complex Decision Example',
+  const requestProcessing: DecisionPath = {
+    id: requestProcessingId,
+    name: 'Request Processing',
     node: {
       id: generateId(),
       type: 'decision',
-      question: 'Is the user authenticated?',
-      branches: [
-        {
+      question: 'Is the customer account in good standing?',
+      branches: [{
+        id: generateId(),
+        label: 'Yes',
+        node: {
           id: generateId(),
-          label: 'Yes',
+          type: 'condition',
+          label: 'Active',
           node: {
             id: generateId(),
             type: 'decision',
-            question: 'Does the user have admin privileges?',
-            branches: [
-              {
+            question: 'Does customer have sufficient credit limit?',
+            branches: [{
+              id: generateId(),
+              label: 'Yes',
+              node: {
                 id: generateId(),
-                label: 'Yes',
+                type: 'condition',
+                label: 'Verified',
                 node: {
                   id: generateId(),
-                  type: 'decision',
-                  question: 'Is the action high-risk?',
-                  branches: [
-                    {
-                      id: generateId(),
-                      label: 'Yes',
-                      node: {
-                        id: generateId(),
-                        type: 'decision',
-                        question: 'Has two-factor authentication been completed?',
-                        branches: [
-                          {
-                            id: generateId(),
-                            label: 'Yes',
-                            node: {
-                              id: generateId(),
-                              type: 'path-reference',
-                              pathId: targetPathId
-                            }
-                          },
-                          {
-                            id: generateId(),
-                            label: 'No',
-                            node: {
-                              id: generateId(),
-                              type: 'outcome',
-                              description: 'Request 2FA authentication'
-                            }
-                          }
-                        ]
-                      }
-                    },
-                    {
-                      id: generateId(),
-                      label: 'No',
-                      node: {
-                        id: generateId(),
-                        type: 'outcome',
-                        description: 'Action approved - proceed'
-                      }
-                    }
-                  ]
-                }
-              },
-              {
-                id: generateId(),
-                label: 'No',
-                node: {
-                  id: generateId(),
-                  type: 'outcome',
-                  description: 'Access denied - insufficient privileges'
+                  type: 'path-reference',
+                  pathId: approvalPathId
                 }
               }
-            ]
-          }
-        },
-        {
-          id: generateId(),
-          label: 'No',
-          node: {
-            id: generateId(),
-            type: 'outcome',
-            description: 'Redirect to login page'
+            }]
           }
         }
-      ]
+      }]
     }
   }
   
-  return [targetPath, mainPath]
+  const routingLogic: DecisionPath = {
+    id: routingLogicId,
+    name: 'Order Routing Logic',
+    node: {
+      id: generateId(),
+      type: 'decision',
+      question: 'Is order urgent?',
+      branches: [{
+        id: generateId(),
+        label: 'Yes',
+        node: {
+          id: generateId(),
+          type: 'condition',
+          label: 'Express',
+          node: {
+            id: generateId(),
+            type: 'decision',
+            question: 'Is express shipping available in customer region?',
+            branches: [{
+              id: generateId(),
+              label: 'Yes',
+              node: {
+                id: generateId(),
+                type: 'condition',
+                label: 'Available',
+                node: {
+                  id: generateId(),
+                  type: 'decision',
+                  question: 'Does customer accept express shipping surcharge?',
+                  branches: [{
+                    id: generateId(),
+                    label: 'Yes',
+                    node: {
+                      id: generateId(),
+                      type: 'condition',
+                      label: 'Confirmed',
+                      node: {
+                        id: generateId(),
+                        type: 'outcome',
+                        description: 'Route to express fulfillment center with 24h SLA'
+                      }
+                    }
+                  }]
+                }
+              }
+            }]
+          }
+        }
+      }]
+    }
+  }
+  
+  return [approvalPath, requestProcessing, routingLogic]
 }
 
 export function generateTextRepresentation(
@@ -254,6 +263,17 @@ export function generateTextRepresentation(
         )
       )
     })
+  } else if (node.type === 'condition') {
+    lines.push(`${indentStr}${prefix}[${node.label}]`)
+    lines.push(
+      generateTextRepresentation(
+        node.node,
+        paths,
+        indent,
+        prefix,
+        visitedPaths
+      )
+    )
   } else if (node.type === 'outcome') {
     lines.push(`${indentStr}${prefix}✓ ${node.description}`)
   } else if (node.type === 'path-reference') {

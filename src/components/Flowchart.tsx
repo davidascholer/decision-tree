@@ -17,7 +17,7 @@ const TURQUOISE_COLORS = {
 
 interface HierarchyNode {
   id: string
-  type: 'decision' | 'outcome' | 'path-reference' | 'start'
+  type: 'decision' | 'outcome' | 'path-reference' | 'start' | 'condition'
   label: string
   pathId?: string
   children?: HierarchyNode[]
@@ -143,6 +143,10 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
           child.branchLabel = branch.label
           return child
         })
+      } else if (node.type === 'condition') {
+        hierarchyNode.label = node.label
+        const child = buildHierarchy(node.node)
+        hierarchyNode.children = [child]
       } else if (node.type === 'outcome') {
         hierarchyNode.label = node.description
       } else if (node.type === 'path-reference') {

@@ -128,7 +128,7 @@ function App() {
     const examplePaths = createExamplePaths()
     setPaths((current) => [...(current || []), ...examplePaths])
     setSelectedPathId(examplePaths[1].id)
-    toast.success('Example paths loaded! Check out "Complex Decision Example"')
+    toast.success('Example paths loaded! Check out "Request Processing"')
   }
 
   const selectedPath = selectedPathId ? currentPaths.find(p => p.id === selectedPathId) : undefined

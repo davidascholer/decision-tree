@@ -1,4 +1,4 @@
-export type NodeType = 'decision' | 'outcome' | 'path-reference'
+export type NodeType = 'decision' | 'outcome' | 'path-reference' | 'condition'
 
 export interface DecisionNode {
   id: string
@@ -19,7 +19,14 @@ export interface PathReferenceNode {
   pathId: string
 }
 
-export type TreeNode = DecisionNode | OutcomeNode | PathReferenceNode
+export interface ConditionNode {
+  id: string
+  type: 'condition'
+  label: string
+  node: TreeNode
+}
+
+export type TreeNode = DecisionNode | OutcomeNode | PathReferenceNode | ConditionNode
 
 export interface Branch {
   id: string

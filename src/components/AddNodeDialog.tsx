@@ -27,11 +27,12 @@ export function AddNodeDialog({
   mode,
   initialNode
 }: AddNodeDialogProps) {
-  const [nodeType, setNodeType] = useState<'decision' | 'outcome' | 'path-reference'>('decision')
+  const [nodeType, setNodeType] = useState<'decision' | 'outcome' | 'path-reference' | 'condition'>('decision')
   const [outputLabel, setOutputLabel] = useState('')
   const [question, setQuestion] = useState('')
   const [description, setDescription] = useState('')
   const [selectedPathId, setSelectedPathId] = useState('')
+  const [conditionLabel, setConditionLabel] = useState('')
 
   useEffect(() => {
     if (open && initialNode) {
@@ -42,12 +43,15 @@ export function AddNodeDialog({
         setDescription(initialNode.description)
       } else if (initialNode.type === 'path-reference') {
         setSelectedPathId(initialNode.pathId)
+      } else if (initialNode.type === 'condition') {
+        setConditionLabel(initialNode.label)
       }
     } else if (open) {
       setOutputLabel('')
       setQuestion('')
       setDescription('')
       setSelectedPathId('')
+      setConditionLabel('')
       setNodeType('decision')
     }
   }, [open, initialNode])
@@ -61,6 +65,18 @@ export function AddNodeDialog({
         type: 'decision',
         question: question.trim(),
         branches: initialNode?.type === 'decision' ? initialNode.branches : []
+      }
+    } else if (nodeType === 'condition') {
+      const childNode = initialNode?.type === 'condition' ? initialNode.node : {
+        id: generateId(),
+        type: 'outcome' as const,
+        description: ''
+      }
+      node = {
+        id: initialNode?.id || generateId(),
+        type: 'condition',
+        label: conditionLabel.trim(),
+        node: childNode
       }
     } else if (nodeType === 'outcome') {
       node = {
@@ -83,6 +99,7 @@ export function AddNodeDialog({
   const isValid = () => {
     if (mode === 'output' && !outputLabel.trim()) return false
     if (nodeType === 'decision' && !question.trim()) return false
+    if (nodeType === 'condition' && !conditionLabel.trim()) return false
     if (nodeType === 'outcome' && !description.trim()) return false
     if (nodeType === 'path-reference' && !selectedPathId) return false
     if (nodeType === 'path-reference' && hasCircularReference(paths, currentPathId, selectedPathId)) return false
@@ -127,6 +144,7 @@ export function AddNodeDialog({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="decision">Decision (Diamond)</SelectItem>
+                <SelectItem value="condition">Condition (Box)</SelectItem>
                 <SelectItem value="outcome">Outcome (Rounded)</SelectItem>
                 <SelectItem value="path-reference">Path Reference (Rectangle)</SelectItem>
               </SelectContent>
@@ -142,6 +160,18 @@ export function AddNodeDialog({
                 value={question}
                 onChange={(e) => setQuestion(e.target.value)}
                 rows={3}
+              />
+            </div>
+          )}
+
+          {nodeType === 'condition' && (
+            <div className="space-y-2">
+              <Label htmlFor="condition-label">Condition Label</Label>
+              <Input
+                id="condition-label"
+                placeholder="e.g., Yes, No, Approved, Verified"
+                value={conditionLabel}
+                onChange={(e) => setConditionLabel(e.target.value)}
               />
             </div>
           )}

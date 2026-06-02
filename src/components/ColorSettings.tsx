@@ -13,6 +13,8 @@ export interface NodeColors {
   outcomeForeground: string
   pathRef: string
   pathRefForeground: string
+  accent: string
+  accentForeground: string
 }
 
 export const DEFAULT_COLORS: NodeColors = {
@@ -22,6 +24,8 @@ export const DEFAULT_COLORS: NodeColors = {
   outcomeForeground: 'oklch(0.25 0.08 145)',
   pathRef: 'oklch(0.60 0.15 290)',
   pathRefForeground: 'oklch(0.25 0.05 290)',
+  accent: 'oklch(0.65 0.18 210)',
+  accentForeground: 'oklch(0.25 0.05 250)',
 }
 
 export function ColorSettings() {

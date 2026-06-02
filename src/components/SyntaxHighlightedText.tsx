@@ -46,6 +46,23 @@ function renderNode(
         )
       )
     })
+  } else if (node.type === 'condition') {
+    elements.push(
+      <div key={`${node.id}-${keyCounter++}`} className="leading-relaxed">
+        <span className="text-muted-foreground">{indentStr}{prefix}</span>
+        <span className="text-accent font-medium">[{node.label}]</span>
+      </div>
+    )
+    
+    elements.push(
+      ...renderNode(
+        node.node,
+        paths,
+        indent,
+        prefix,
+        visitedPaths
+      )
+    )
   } else if (node.type === 'outcome') {
     elements.push(
       <div key={`${node.id}-${keyCounter++}`} className="leading-relaxed">

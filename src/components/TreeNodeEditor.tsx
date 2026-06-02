@@ -80,6 +80,8 @@ export function TreeNodeEditor({
     switch (type) {
       case 'decision':
         return <DiamondsFour weight="fill" className="text-decision-foreground" />
+      case 'condition':
+        return <CheckCircle weight="fill" className="text-accent-foreground" />
       case 'outcome':
         return <CheckCircle weight="fill" className="text-outcome-foreground" />
       case 'path-reference':
@@ -91,6 +93,8 @@ export function TreeNodeEditor({
     switch (type) {
       case 'decision':
         return { bg: colors.decision, fg: colors.decisionForeground }
+      case 'condition':
+        return { bg: colors.accent, fg: colors.accentForeground }
       case 'outcome':
         return { bg: colors.outcome, fg: colors.outcomeForeground }
       case 'path-reference':
@@ -100,6 +104,7 @@ export function TreeNodeEditor({
 
   const getNodeLabel = (n: TreeNode) => {
     if (n.type === 'decision') return n.question
+    if (n.type === 'condition') return n.label
     if (n.type === 'outcome') return n.description
     if (n.type === 'path-reference') {
       const path = paths.find(p => p.id === n.pathId)
@@ -225,6 +230,52 @@ export function TreeNodeEditor({
         >
           <Pencil />
         </Button>
+        <AddNodeDialog
+          open={editDialogOpen}
+          onOpenChange={setEditDialogOpen}
+          onAdd={(_, newNode: TreeNode) => handleUpdateNode(newNode)}
+          paths={paths}
+          currentPathId={currentPathId}
+          mode="edit"
+          initialNode={node}
+        />
+      </div>
+    )
+  }
+
+  if (node.type === 'condition') {
+    const nodeColors = getNodeColor(node.type)
+    return (
+      <div className="space-y-2">
+        <div 
+          className="flex items-center gap-3 p-3 rounded-lg border-2" 
+          style={{ backgroundColor: nodeColors.bg, color: nodeColors.fg, borderColor: nodeColors.fg }}
+        >
+          {getNodeIcon(node.type)}
+          <div className="flex-1">
+            <div className="font-medium">{node.label}</div>
+            <div className="text-xs opacity-80 font-mono mt-1">ID: {node.id}</div>
+          </div>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setEditDialogOpen(true)}
+            className="h-8 w-8 p-0"
+          >
+            <Pencil />
+          </Button>
+        </div>
+
+        <div className="ml-6 pl-4 border-l-2 border-border">
+          <TreeNodeEditor
+            node={node.node}
+            paths={paths}
+            currentPathId={currentPathId}
+            onUpdateNode={(updated) => onUpdateNode({ ...node, node: updated })}
+            depth={depth + 1}
+          />
+        </div>
+
         <AddNodeDialog
           open={editDialogOpen}
           onOpenChange={setEditDialogOpen}
