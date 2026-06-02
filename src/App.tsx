@@ -5,7 +5,7 @@ import { Button } from './components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs'
 import { Input } from './components/ui/input'
-import { Plus, Trash, List, Tree, Download, Upload, Code, Copy, Sparkle, TextAa, ArrowCounterClockwise, ArrowClockwise, Warning, Question, DiamondsFour, CheckCircle, FlowArrow } from '@phosphor-icons/react'
+import { Plus, Trash, List, Tree, Download, Upload, Code, Copy, Sparkle, TextAa, ArrowCounterClockwise, ArrowClockwise, Warning, Question, DiamondsFour, CheckCircle, FlowArrow, PencilSimple, Check, X } from '@phosphor-icons/react'
 import { useState, useRef, useEffect } from 'react'
 import { TreeNodeEditor } from './components/TreeNodeEditor'
 import { Flowchart } from './components/Flowchart'
@@ -36,7 +36,10 @@ function App() {
   const [showNewPathInput, setShowNewPathInput] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [pathToDelete, setPathToDelete] = useState<{ id: string; name: string } | null>(null)
+  const [editingPathId, setEditingPathId] = useState<string | null>(null)
+  const [editingPathName, setEditingPathName] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const editInputRef = useRef<HTMLInputElement>(null)
 
   const currentPaths = paths || []
 
@@ -68,6 +71,13 @@ function App() {
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [undo, redo, canUndo, canRedo])
+
+  useEffect(() => {
+    if (editingPathId && editInputRef.current) {
+      editInputRef.current.focus()
+      editInputRef.current.select()
+    }
+  }, [editingPathId])
 
   const handleAddPath = () => {
     if (!newPathName.trim()) return
@@ -131,6 +141,33 @@ function App() {
     )
     setPaths(newPaths)
     pushState(newPaths)
+  }
+
+  const handleStartEditPathName = (pathId: string, currentName: string) => {
+    setEditingPathId(pathId)
+    setEditingPathName(currentName)
+  }
+
+  const handleSavePathName = () => {
+    if (!editingPathId || !editingPathName.trim()) {
+      setEditingPathId(null)
+      setEditingPathName('')
+      return
+    }
+
+    const newPaths = currentPaths.map(path =>
+      path.id === editingPathId ? { ...path, name: editingPathName.trim() } : path
+    )
+    setPaths(newPaths)
+    pushState(newPaths)
+    toast.success(`Path renamed to "${editingPathName.trim()}"`)
+    setEditingPathId(null)
+    setEditingPathName('')
+  }
+
+  const handleCancelEditPathName = () => {
+    setEditingPathId(null)
+    setEditingPathName('')
   }
 
   const handleExportJSON = () => {
@@ -361,30 +398,90 @@ function App() {
                   {currentPaths.map(path => (
                     <div
                       key={path.id}
-                      className={`flex items-center justify-between p-3 rounded-lg border-2 cursor-pointer transition-colors ${
+                      className={`flex items-center justify-between p-3 rounded-lg border-2 transition-colors ${
                         selectedPathId === path.id
                           ? 'bg-primary/10 border-primary'
                           : 'bg-card border-border hover:bg-muted'
-                      }`}
-                      onClick={() => setSelectedPathId(path.id)}
+                      } ${editingPathId === path.id ? '' : 'cursor-pointer'}`}
+                      onClick={() => editingPathId !== path.id && setSelectedPathId(path.id)}
                     >
-                      <div className="flex-1 truncate">
-                        <div className="font-medium">{path.name}</div>
-                        <div className="text-xs text-muted-foreground font-mono truncate">
-                          {path.id}
-                        </div>
+                      <div className="flex-1 min-w-0">
+                        {editingPathId === path.id ? (
+                          <div className="flex items-center gap-2">
+                            <Input
+                              ref={editInputRef}
+                              value={editingPathName}
+                              onChange={(e) => setEditingPathName(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  handleSavePathName()
+                                } else if (e.key === 'Escape') {
+                                  handleCancelEditPathName()
+                                }
+                              }}
+                              className="h-8 text-sm"
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleSavePathName()
+                              }}
+                              className="h-8 w-8 p-0 text-accent hover:text-accent"
+                            >
+                              <Check />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleCancelEditPathName()
+                              }}
+                              className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                            >
+                              <X />
+                            </Button>
+                          </div>
+                        ) : (
+                          <>
+                            <div className="font-medium truncate">{path.name}</div>
+                            <div className="text-xs text-muted-foreground font-mono truncate">
+                              {path.id}
+                            </div>
+                          </>
+                        )}
                       </div>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleDeletePath(path.id)
-                        }}
-                        className="ml-2 h-8 w-8 p-0 text-destructive hover:text-destructive"
-                      >
-                        <Trash />
-                      </Button>
+                      {editingPathId !== path.id && (
+                        <div className="flex items-center gap-1 ml-2">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleStartEditPathName(path.id, path.name)
+                            }}
+                            className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                            title="Rename path"
+                          >
+                            <PencilSimple />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleDeletePath(path.id)
+                            }}
+                            className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                            title="Delete path"
+                          >
+                            <Trash />
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </CardContent>
