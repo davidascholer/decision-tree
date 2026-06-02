@@ -382,19 +382,17 @@ function ConditionNodeEditor({
   }
 
   return (
-    <Button
-      variant="outline"
-      size="sm"
-      onClick={() => setAddChildOpen(true)}
-      className="w-full"
-    >
-      <Plus />
-      Add Content
-    </Button>
-  )
-
-  return (
     <>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => setAddChildOpen(true)}
+        className="w-full"
+      >
+        <Plus />
+        Add Content
+      </Button>
+      
       <AddNodeDialog
         open={addChildOpen}
         onOpenChange={setAddChildOpen}
