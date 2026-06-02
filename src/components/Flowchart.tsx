@@ -1,6 +1,8 @@
 import { DecisionPath, TreeNode, DecisionNode, ConditionNode } from '@/lib/types'
 import { useEffect, useRef, useState } from 'react'
 import { Button } from './ui/button'
+import { Switch } from './ui/switch'
+import { Label } from './ui/label'
 import { Plus, Minus, ArrowsOut } from '@phosphor-icons/react'
 
 interface FlowchartProps {
@@ -91,6 +93,7 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
   const [startPan, setStartPan] = useState({ x: 0, y: 0 })
   const [isAnimating, setIsAnimating] = useState(false)
   const [hoveredNode, setHoveredNode] = useState<string | null>(null)
+  const [expandReferences, setExpandReferences] = useState(false)
 
   const selectedPath = selectedPathId 
     ? paths.find(p => p.id === selectedPathId)
@@ -214,9 +217,9 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
         animationFrameRef.current = null
       }
     }
-  }, [zoom, pan, isPanning, startPan, isAnimating, hoveredNode, selectedPath, paths])
+  }, [zoom, pan, isPanning, startPan, isAnimating, hoveredNode, selectedPath, paths, expandReferences])
 
-  const buildFlowTree = (node: TreeNode | DecisionPath, x: number, y: number, level: number, parent?: FlowNode): FlowNode => {
+  const buildFlowTree = (node: TreeNode | DecisionPath, x: number, y: number, level: number, parent?: FlowNode, visitedPaths: Set<string> = new Set()): FlowNode => {
     const config = NODE_CONFIG[node.type] || NODE_CONFIG.decision
     
     const flowNode: FlowNode = {
@@ -243,7 +246,7 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
           const childX = startX + index * (config.width + HORIZONTAL_SPACING)
           const childY = y + config.height / 2 + CONDITION_VERTICAL_OFFSET
           
-          const conditionNode = buildFlowTree(condition, childX, childY, level + 1, flowNode)
+          const conditionNode = buildFlowTree(condition, childX, childY, level + 1, flowNode, visitedPaths)
           conditionNode.conditionLabel = condition.description
           flowNode.children.push(conditionNode)
         })
@@ -252,7 +255,7 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
       flowNode.label = node.description
       if (node.next) {
         const nextY = y + config.height / 2 + VERTICAL_SPACING
-        const nextNode = buildFlowTree(node.next, x, nextY, level + 1, flowNode)
+        const nextNode = buildFlowTree(node.next, x, nextY, level + 1, flowNode, visitedPaths)
         flowNode.children.push(nextNode)
       }
     } else if (node.type === 'outcome') {
@@ -260,6 +263,15 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
     } else if (node.type === 'path-reference') {
       const referencedPath = paths.find(p => p.id === node.pathId)
       flowNode.label = referencedPath?.name || 'Unknown Path'
+      
+      if (expandReferences && referencedPath && !visitedPaths.has(node.pathId)) {
+        const newVisitedPaths = new Set(visitedPaths)
+        newVisitedPaths.add(node.pathId)
+        
+        const nextY = y + config.height / 2 + VERTICAL_SPACING
+        const expandedNode = buildFlowTree(referencedPath, x, nextY, level + 1, flowNode, newVisitedPaths)
+        flowNode.children.push(expandedNode)
+      }
     }
 
     return flowNode
@@ -411,7 +423,7 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
     }
 
     render()
-  }, [selectedPath, paths, zoom, pan, hoveredNode])
+  }, [selectedPath, paths, zoom, pan, hoveredNode, expandReferences])
 
   const drawConnection = (ctx: CanvasRenderingContext2D, conn: Connection, offsetX: number, offsetY: number) => {
     const fromX = conn.from.x + offsetX
@@ -555,6 +567,17 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
       className="w-full h-full overflow-hidden bg-gradient-to-br from-background via-muted/30 to-accent/10 rounded-lg border relative cursor-grab"
     >
       <canvas ref={canvasRef} className="w-full h-full" />
+      
+      <div className="absolute top-4 left-4 flex items-center gap-3 bg-card/90 backdrop-blur-sm border rounded-lg px-4 py-2.5 shadow-lg">
+        <Label htmlFor="expand-references" className="text-sm font-medium cursor-pointer">
+          Expand References
+        </Label>
+        <Switch
+          id="expand-references"
+          checked={expandReferences}
+          onCheckedChange={setExpandReferences}
+        />
+      </div>
       
       <div className="absolute top-4 right-4 flex gap-2">
         <Button
