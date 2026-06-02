@@ -98,3 +98,130 @@ export function deleteNodeFromTree(node: TreeNode, branchId: string): TreeNode |
   
   return node
 }
+
+export function createExamplePaths(): DecisionPath[] {
+  const targetPathId = generateId()
+  const mainPathId = generateId()
+  
+  const targetPath: DecisionPath = {
+    id: targetPathId,
+    name: 'Final Destination Path',
+    node: {
+      id: generateId(),
+      type: 'decision',
+      question: 'Final verification step',
+      branches: [
+        {
+          id: generateId(),
+          label: 'Verified',
+          node: {
+            id: generateId(),
+            type: 'outcome',
+            description: 'Process completed successfully!'
+          }
+        },
+        {
+          id: generateId(),
+          label: 'Failed',
+          node: {
+            id: generateId(),
+            type: 'outcome',
+            description: 'Verification failed - review required'
+          }
+        }
+      ]
+    }
+  }
+  
+  const mainPath: DecisionPath = {
+    id: mainPathId,
+    name: 'Complex Decision Example',
+    node: {
+      id: generateId(),
+      type: 'decision',
+      question: 'Is the user authenticated?',
+      branches: [
+        {
+          id: generateId(),
+          label: 'Yes',
+          node: {
+            id: generateId(),
+            type: 'decision',
+            question: 'Does the user have admin privileges?',
+            branches: [
+              {
+                id: generateId(),
+                label: 'Yes',
+                node: {
+                  id: generateId(),
+                  type: 'decision',
+                  question: 'Is the action high-risk?',
+                  branches: [
+                    {
+                      id: generateId(),
+                      label: 'Yes',
+                      node: {
+                        id: generateId(),
+                        type: 'decision',
+                        question: 'Has two-factor authentication been completed?',
+                        branches: [
+                          {
+                            id: generateId(),
+                            label: 'Yes',
+                            node: {
+                              id: generateId(),
+                              type: 'path-reference',
+                              pathId: targetPathId
+                            }
+                          },
+                          {
+                            id: generateId(),
+                            label: 'No',
+                            node: {
+                              id: generateId(),
+                              type: 'outcome',
+                              description: 'Request 2FA authentication'
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      id: generateId(),
+                      label: 'No',
+                      node: {
+                        id: generateId(),
+                        type: 'outcome',
+                        description: 'Action approved - proceed'
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                id: generateId(),
+                label: 'No',
+                node: {
+                  id: generateId(),
+                  type: 'outcome',
+                  description: 'Access denied - insufficient privileges'
+                }
+              }
+            ]
+          }
+        },
+        {
+          id: generateId(),
+          label: 'No',
+          node: {
+            id: generateId(),
+            type: 'outcome',
+            description: 'Redirect to login page'
+          }
+        }
+      ]
+    }
+  }
+  
+  return [targetPath, mainPath]
+}

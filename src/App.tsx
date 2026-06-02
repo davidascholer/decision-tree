@@ -1,11 +1,11 @@
 import { useKV } from '@github/spark/hooks'
 import { DecisionPath, TreeNode } from './lib/types'
-import { generateId } from './lib/tree-utils'
+import { generateId, createExamplePaths } from './lib/tree-utils'
 import { Button } from './components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs'
 import { Input } from './components/ui/input'
-import { Plus, Trash, List, Tree, Download, Upload, Code, Copy } from '@phosphor-icons/react'
+import { Plus, Trash, List, Tree, Download, Upload, Code, Copy, Sparkle } from '@phosphor-icons/react'
 import { useState, useRef } from 'react'
 import { TreeNodeEditor } from './components/TreeNodeEditor'
 import { Flowchart } from './components/Flowchart'
@@ -115,6 +115,13 @@ function App() {
     toast.success('JSON copied to clipboard')
   }
 
+  const handleLoadExample = () => {
+    const examplePaths = createExamplePaths()
+    setPaths((current) => [...(current || []), ...examplePaths])
+    setSelectedPathId(examplePaths[1].id)
+    toast.success('Example paths loaded! Check out "Complex Decision Example"')
+  }
+
   const selectedPath = selectedPathId ? currentPaths.find(p => p.id === selectedPathId) : undefined
 
   return (
@@ -137,6 +144,14 @@ function App() {
               </p>
             </div>
             <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={handleLoadExample}
+                title="Load Example Path"
+              >
+                <Sparkle />
+                Example
+              </Button>
               <Button
                 variant="outline"
                 onClick={() => fileInputRef.current?.click()}
