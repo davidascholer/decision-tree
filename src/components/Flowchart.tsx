@@ -32,6 +32,7 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
   const [isPanning, setIsPanning] = useState(false)
   const [startPan, setStartPan] = useState({ x: 0, y: 0 })
   const [isAnimating, setIsAnimating] = useState(false)
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
 
   useEffect(() => {
     const container = containerRef.current
@@ -99,6 +100,33 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
     
     if (!selectedPath) return
 
+    function getPathToNode(nodeId: string, root: any): Set<string> {
+      const pathSet = new Set<string>()
+      
+      function traverse(node: any): boolean {
+        if (!node) return false
+        
+        if (node.data.id === nodeId) {
+          pathSet.add(node.data.id)
+          return true
+        }
+        
+        if (node.children) {
+          for (const child of node.children) {
+            if (traverse(child)) {
+              pathSet.add(node.data.id)
+              return true
+            }
+          }
+        }
+        
+        return false
+      }
+      
+      traverse(root)
+      return pathSet
+    }
+
     function buildHierarchy(node: TreeNode): HierarchyNode {
       const hierarchyNode: HierarchyNode = {
         id: node.id,
@@ -150,6 +178,8 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
     const nodes = root.descendants()
     const links = root.links()
 
+    const highlightedPath = selectedNodeId ? getPathToNode(selectedNodeId, root) : new Set<string>()
+
     let minX = Infinity
     let maxX = -Infinity
     let minY = Infinity
@@ -185,10 +215,20 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
       .attr('points', '0 0, 10 3, 0 6')
       .attr('fill', 'oklch(0.45 0.15 250)')
 
+    const markerHighlight = defs.append('marker')
+      .attr('id', 'arrowhead-highlight')
+      .attr('markerWidth', 10)
+      .attr('markerHeight', 10)
+      .attr('refX', 8)
+      .attr('refY', 3)
+      .attr('orient', 'auto')
+    
+    markerHighlight.append('polygon')
+      .attr('points', '0 0, 10 3, 0 6')
+      .attr('fill', 'oklch(0.65 0.18 210)')
+
     const linkGroup = g.append('g')
       .attr('fill', 'none')
-      .attr('stroke', 'oklch(0.45 0.15 250)')
-      .attr('stroke-width', 2)
 
     const labelBoxHeight = 32
     const labelBoxPadding = 8
@@ -211,7 +251,18 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
                   ${d.target.x},${(labelBoxBottom + targetY) / 2}
                   ${d.target.x},${targetY}`
       })
-      .attr('marker-end', 'url(#arrowhead)')
+      .attr('stroke', d => {
+        const isHighlighted = highlightedPath.has(d.source.data.id) && highlightedPath.has(d.target.data.id)
+        return isHighlighted ? 'oklch(0.65 0.18 210)' : 'oklch(0.45 0.15 250)'
+      })
+      .attr('stroke-width', d => {
+        const isHighlighted = highlightedPath.has(d.source.data.id) && highlightedPath.has(d.target.data.id)
+        return isHighlighted ? 3 : 2
+      })
+      .attr('marker-end', d => {
+        const isHighlighted = highlightedPath.has(d.source.data.id) && highlightedPath.has(d.target.data.id)
+        return isHighlighted ? 'url(#arrowhead-highlight)' : 'url(#arrowhead)'
+      })
 
     const labelBoxes = g.append('g')
       .selectAll('g')
@@ -256,6 +307,10 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
       .join('g')
       .attr('transform', d => `translate(${d.x},${d.y})`)
       .style('cursor', 'pointer')
+      .on('click', function(event, d) {
+        event.stopPropagation()
+        setSelectedNodeId(prevId => prevId === d.data.id ? null : d.data.id)
+      })
       .on('dblclick', function(event, d) {
         event.stopPropagation()
         
@@ -307,26 +362,33 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
       const shapeWidth = 160
       const shapeHeight = 70
       
+      const isHighlighted = highlightedPath.has(nodeData.id)
+      
       let borderRadius = 0
       let fillColor = ''
       let strokeColor = ''
+      let strokeWidth = 2
       
       if (nodeData.type === 'start') {
         borderRadius = 8
         fillColor = 'oklch(0.45 0.15 250)'
-        strokeColor = 'oklch(0.45 0.15 250)'
+        strokeColor = isHighlighted ? 'oklch(0.65 0.18 210)' : 'oklch(0.45 0.15 250)'
+        strokeWidth = isHighlighted ? 4 : 2
       } else if (nodeData.type === 'decision') {
         borderRadius = 4
         fillColor = TURQUOISE_COLORS.decision
-        strokeColor = 'oklch(0.25 0.05 195)'
+        strokeColor = isHighlighted ? 'oklch(0.65 0.18 210)' : 'oklch(0.25 0.05 195)'
+        strokeWidth = isHighlighted ? 4 : 2
       } else if (nodeData.type === 'outcome') {
         borderRadius = 35
         fillColor = TURQUOISE_COLORS.outcome
-        strokeColor = 'oklch(0.25 0.05 195)'
+        strokeColor = isHighlighted ? 'oklch(0.65 0.18 210)' : 'oklch(0.25 0.05 195)'
+        strokeWidth = isHighlighted ? 4 : 2
       } else if (nodeData.type === 'path-reference') {
         borderRadius = 16
         fillColor = TURQUOISE_COLORS.pathRef
-        strokeColor = 'oklch(0.25 0.05 195)'
+        strokeColor = isHighlighted ? 'oklch(0.65 0.18 210)' : 'oklch(0.25 0.05 195)'
+        strokeWidth = isHighlighted ? 4 : 2
       }
       
       if (nodeData.type === 'start') {
@@ -337,7 +399,7 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
           .attr('cy', 0)
           .attr('fill', fillColor)
           .attr('stroke', strokeColor)
-          .attr('stroke-width', 2)
+          .attr('stroke-width', strokeWidth)
       } else {
         g.append('rect')
           .attr('width', shapeWidth)
@@ -346,7 +408,7 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
           .attr('y', -shapeHeight / 2)
           .attr('fill', fillColor)
           .attr('stroke', strokeColor)
-          .attr('stroke-width', 2)
+          .attr('stroke-width', strokeWidth)
           .attr('rx', borderRadius)
       }
 
@@ -394,7 +456,7 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
       return lines.slice(0, 4)
     }
 
-  }, [paths, selectedPathId])
+  }, [paths, selectedPathId, selectedNodeId])
 
   const handleZoomIn = () => {
     setZoom(prev => Math.min(prev * 1.2, 5))
