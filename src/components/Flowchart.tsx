@@ -1,4 +1,4 @@
-import { DecisionPath, TreeNode } from '@/lib/types'
+import { DecisionPath, TreeNode, DecisionNode, ConditionNode } from '@/lib/types'
 import * as d3 from 'd3'
 import { useEffect, useRef, useState } from 'react'
 import { Button } from './ui/button'
@@ -33,6 +33,7 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
   const [startPan, setStartPan] = useState({ x: 0, y: 0 })
   const [isAnimating, setIsAnimating] = useState(false)
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
+  const [collapsedNodes, setCollapsedNodes] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     const container = containerRef.current
@@ -136,9 +137,11 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
         children: []
       }
 
+      const isCollapsed = collapsedNodes.has(node.id)
+
       if (node.type === 'decision') {
         hierarchyNode.label = node.question
-        if (node.conditions && node.conditions.length > 0) {
+        if (node.conditions && node.conditions.length > 0 && !isCollapsed) {
           hierarchyNode.children = node.conditions.map(condition => {
             const child = buildHierarchy(condition)
             child.branchLabel = condition.label
@@ -147,7 +150,7 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
         }
       } else if (node.type === 'condition') {
         hierarchyNode.label = node.label
-        if (node.next) {
+        if (node.next && !isCollapsed) {
           const child = buildHierarchy(node.next)
           hierarchyNode.children = [child]
         }
@@ -288,7 +291,20 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
       .style('cursor', 'pointer')
       .on('click', function(event, d) {
         event.stopPropagation()
-        setSelectedNodeId(prevId => prevId === d.data.id ? null : d.data.id)
+        
+        if (d.data.type === 'decision' || d.data.type === 'condition') {
+          setCollapsedNodes(prev => {
+            const newSet = new Set(prev)
+            if (newSet.has(d.data.id)) {
+              newSet.delete(d.data.id)
+            } else {
+              newSet.add(d.data.id)
+            }
+            return newSet
+          })
+        } else {
+          setSelectedNodeId(prevId => prevId === d.data.id ? null : d.data.id)
+        }
       })
       .on('dblclick', function(event, d) {
         event.stopPropagation()
@@ -342,6 +358,7 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
       const shapeHeight = 70
       
       const isHighlighted = highlightedPath.has(nodeData.id)
+      const isCollapsed = collapsedNodes.has(nodeData.id)
       
       let borderRadius = 0
       let fillColor = ''
@@ -411,6 +428,61 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
           .attr('y', startY + i * lineHeight)
           .text(line)
       })
+      
+      if (nodeData.type === 'decision' || nodeData.type === 'condition') {
+        let originalNode: DecisionNode | ConditionNode | undefined
+        
+        function findOriginalNode(node: TreeNode | DecisionPath, targetId: string): DecisionNode | ConditionNode | undefined {
+          if (node.id === targetId && (node.type === 'decision' || node.type === 'condition')) {
+            return node as DecisionNode | ConditionNode
+          }
+          
+          if (node.type === 'decision' && node.conditions) {
+            for (const condition of node.conditions) {
+              const result = findOriginalNode(condition, targetId)
+              if (result) return result
+            }
+          } else if (node.type === 'condition' && node.next) {
+            return findOriginalNode(node.next, targetId)
+          }
+          
+          return undefined
+        }
+        
+        const selectedPath = paths.find(p => p.id === selectedPathId)
+        if (selectedPath) {
+          originalNode = findOriginalNode(selectedPath, nodeData.id)
+        }
+        
+        const hasChildren = originalNode && (
+          (originalNode.type === 'decision' && originalNode.conditions && originalNode.conditions.length > 0) ||
+          (originalNode.type === 'condition' && originalNode.next)
+        )
+        
+        if (hasChildren) {
+          const indicatorSize = 16
+          const indicatorX = shapeWidth / 2 - indicatorSize - 4
+          const indicatorY = -shapeHeight / 2 + 4
+          
+          g.append('circle')
+            .attr('cx', indicatorX + indicatorSize / 2)
+            .attr('cy', indicatorY + indicatorSize / 2)
+            .attr('r', indicatorSize / 2)
+            .attr('fill', 'oklch(0.98 0 0)')
+            .attr('stroke', 'oklch(0.25 0.05 195)')
+            .attr('stroke-width', 1.5)
+          
+          g.append('text')
+            .attr('x', indicatorX + indicatorSize / 2)
+            .attr('y', indicatorY + indicatorSize / 2)
+            .attr('text-anchor', 'middle')
+            .attr('dominant-baseline', 'middle')
+            .attr('font-size', 12)
+            .attr('font-weight', 700)
+            .attr('fill', 'oklch(0.25 0.05 195)')
+            .text(isCollapsed ? '+' : '−')
+        }
+      }
     })
 
     function wrapText(text: string, maxChars: number): string[] {
@@ -435,7 +507,7 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
       return lines.slice(0, 4)
     }
 
-  }, [paths, selectedPathId, selectedNodeId])
+  }, [paths, selectedPathId, selectedNodeId, collapsedNodes])
 
   const handleZoomIn = () => {
     setZoom(prev => Math.min(prev * 1.2, 5))
