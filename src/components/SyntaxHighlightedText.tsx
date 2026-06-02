@@ -1,4 +1,5 @@
 import { TreeNode, DecisionPath } from '../lib/types'
+import { ReactElement } from 'react'
 
 interface SyntaxHighlightedTextProps {
   node: TreeNode | DecisionPath
@@ -11,9 +12,9 @@ function renderNode(
   indent: number = 0,
   prefix: string = '',
   visitedPaths: Set<string> = new Set()
-): JSX.Element[] {
+): ReactElement[] {
   const indentStr = '\u00A0\u00A0'.repeat(indent)
-  const elements: JSX.Element[] = []
+  const elements: ReactElement[] = []
   let keyCounter = 0
 
   if (node.type === 'decision') {
