@@ -5,13 +5,14 @@ import { Button } from './components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs'
 import { Input } from './components/ui/input'
-import { Plus, Trash, List, Tree, Download, Upload, Code, Copy, Sparkle, TextAa } from '@phosphor-icons/react'
-import { useState, useRef } from 'react'
+import { Plus, Trash, List, Tree, Download, Upload, Code, Copy, Sparkle, TextAa, ArrowCounterClockwise, ArrowClockwise } from '@phosphor-icons/react'
+import { useState, useRef, useEffect } from 'react'
 import { TreeNodeEditor } from './components/TreeNodeEditor'
 import { Flowchart } from './components/Flowchart'
 import { SyntaxHighlightedText } from './components/SyntaxHighlightedText'
 import { toast } from 'sonner'
 import { Toaster } from './components/ui/sonner'
+import { useUndoRedo } from './hooks/use-undo-redo'
 
 function App() {
   const [paths, setPaths] = useKV<DecisionPath[]>('decision-paths', [])
@@ -21,6 +22,35 @@ function App() {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const currentPaths = paths || []
+
+  const { canUndo, canRedo, undo, redo, pushState } = useUndoRedo<DecisionPath[]>(
+    currentPaths,
+    (newPaths) => {
+      setPaths(newPaths)
+    },
+    { maxHistorySize: 50 }
+  )
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault()
+        undo()
+        if (canUndo) {
+          toast.info('Undo')
+        }
+      } else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+        e.preventDefault()
+        redo()
+        if (canRedo) {
+          toast.info('Redo')
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [undo, redo, canUndo, canRedo])
 
   const handleAddPath = () => {
     if (!newPathName.trim()) return
@@ -32,7 +62,9 @@ function App() {
       question: 'Start',
     }
 
-    setPaths((current) => [...(current || []), newPath])
+    const newPaths = [...currentPaths, newPath]
+    setPaths(newPaths)
+    pushState(newPaths)
     setSelectedPathId(newPath.id)
     setNewPathName('')
     setShowNewPathInput(false)
@@ -41,7 +73,9 @@ function App() {
 
   const handleDeletePath = (pathId: string) => {
     const path = currentPaths.find(p => p.id === pathId)
-    setPaths((current) => (current || []).filter(p => p.id !== pathId))
+    const newPaths = currentPaths.filter(p => p.id !== pathId)
+    setPaths(newPaths)
+    pushState(newPaths)
     if (selectedPathId === pathId) {
       setSelectedPathId(undefined)
     }
@@ -49,13 +83,11 @@ function App() {
   }
 
   const handleUpdatePath = (pathId: string, updatedPath: DecisionPath) => {
-    setPaths((current) =>
-      (current || []).map(path =>
-        path.id === pathId
-          ? updatedPath
-          : path
-      )
+    const newPaths = currentPaths.map(path =>
+      path.id === pathId ? updatedPath : path
     )
+    setPaths(newPaths)
+    pushState(newPaths)
   }
 
   const handleExportJSON = () => {
@@ -88,6 +120,7 @@ function App() {
         }
 
         setPaths(data.paths)
+        pushState(data.paths)
         toast.success(`Imported ${data.paths.length} decision tree(s)`)
         
         if (data.paths.length > 0 && !selectedPathId) {
@@ -122,7 +155,9 @@ function App() {
 
   const handleLoadExample = () => {
     const examplePaths = createExamplePaths()
-    setPaths((current) => [...(current || []), ...examplePaths])
+    const newPaths = [...currentPaths, ...examplePaths]
+    setPaths(newPaths)
+    pushState(newPaths)
     setSelectedPathId(examplePaths[1].id)
     toast.success('Example paths loaded! Check out "Request Processing"')
   }
@@ -149,6 +184,26 @@ function App() {
               </p>
             </div>
             <div className="flex gap-2">
+              <div className="flex gap-1 border-r pr-2 mr-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={undo}
+                  disabled={!canUndo}
+                  title="Undo (Ctrl+Z)"
+                >
+                  <ArrowCounterClockwise />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={redo}
+                  disabled={!canRedo}
+                  title="Redo (Ctrl+Y)"
+                >
+                  <ArrowClockwise />
+                </Button>
+              </div>
               <Button
                 variant="outline"
                 onClick={handleLoadExample}
