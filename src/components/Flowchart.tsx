@@ -202,31 +202,6 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
     const g = svg.append('g')
       .attr('transform', `translate(${offsetX},${offsetY})`)
 
-    const defs = svg.append('defs')
-    const marker = defs.append('marker')
-      .attr('id', 'arrowhead')
-      .attr('markerWidth', 10)
-      .attr('markerHeight', 10)
-      .attr('refX', 8)
-      .attr('refY', 3)
-      .attr('orient', 'auto')
-    
-    marker.append('polygon')
-      .attr('points', '0 0, 10 3, 0 6')
-      .attr('fill', 'oklch(0.45 0.15 250)')
-
-    const markerHighlight = defs.append('marker')
-      .attr('id', 'arrowhead-highlight')
-      .attr('markerWidth', 10)
-      .attr('markerHeight', 10)
-      .attr('refX', 8)
-      .attr('refY', 3)
-      .attr('orient', 'auto')
-    
-    markerHighlight.append('polygon')
-      .attr('points', '0 0, 10 3, 0 6')
-      .attr('fill', 'oklch(0.65 0.18 210)')
-
     const linkGroup = g.append('g')
       .attr('fill', 'none')
 
@@ -258,10 +233,6 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
       .attr('stroke-width', d => {
         const isHighlighted = highlightedPath.has(d.source.data.id) && highlightedPath.has(d.target.data.id)
         return isHighlighted ? 3 : 2
-      })
-      .attr('marker-end', d => {
-        const isHighlighted = highlightedPath.has(d.source.data.id) && highlightedPath.has(d.target.data.id)
-        return isHighlighted ? 'url(#arrowhead-highlight)' : 'url(#arrowhead)'
       })
 
     const labelBoxes = g.append('g')
