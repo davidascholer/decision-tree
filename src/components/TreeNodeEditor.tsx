@@ -212,15 +212,17 @@ export function TreeNodeEditor({
                       </div>
                     </div>
                     {condition.type === 'condition' && (
-                      <ConditionNodeEditor
-                        condition={condition}
-                        paths={paths}
-                        currentPathId={currentPathId}
-                        onUpdateCondition={(updated) => 
-                          handleUpdateCondition(condition.id, updated)
-                        }
-                        depth={depth + 1}
-                      />
+                      <div className="ml-4">
+                        <ConditionNodeEditor
+                          condition={condition}
+                          paths={paths}
+                          currentPathId={currentPathId}
+                          onUpdateCondition={(updated) => 
+                            handleUpdateCondition(condition.id, updated)
+                          }
+                          depth={depth + 1}
+                        />
+                      </div>
                     )}
                   </div>
                 ))}
@@ -445,24 +447,26 @@ function ConditionNodeEditor({
                           </Button>
                         </div>
                       </div>
-                      <ConditionNodeEditor
-                        condition={cond}
-                        paths={paths}
-                        currentPathId={currentPathId}
-                        onUpdateCondition={(updated) => {
-                          const updatedConditions = (next.conditions || []).map(c =>
-                            c.id === cond.id ? updated : c
-                          )
-                          onUpdateCondition({
-                            ...condition,
-                            next: {
-                              ...next,
-                              conditions: updatedConditions
-                            }
-                          })
-                        }}
-                        depth={depth + 1}
-                      />
+                      <div className="ml-4">
+                        <ConditionNodeEditor
+                          condition={cond}
+                          paths={paths}
+                          currentPathId={currentPathId}
+                          onUpdateCondition={(updated) => {
+                            const updatedConditions = (next.conditions || []).map(c =>
+                              c.id === cond.id ? updated : c
+                            )
+                            onUpdateCondition({
+                              ...condition,
+                              next: {
+                                ...next,
+                                conditions: updatedConditions
+                              }
+                            })
+                          }}
+                          depth={depth + 1}
+                        />
+                      </div>
                     </div>
                   ))}
                 </div>
