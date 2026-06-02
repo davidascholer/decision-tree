@@ -143,7 +143,7 @@ export function AddNodeDialog({
 
           <div className="space-y-2">
             <Label htmlFor="node-type">Node Type</Label>
-            <Select value={nodeType} onValueChange={(value: any) => setNodeType(value)}>
+            <Select value={nodeType} onValueChange={(value: any) => setNodeType(value)} disabled={mode === 'edit'}>
               <SelectTrigger id="node-type">
                 <SelectValue />
               </SelectTrigger>
@@ -168,6 +168,11 @@ export function AddNodeDialog({
                 )}
               </SelectContent>
             </Select>
+            {mode === 'edit' && (
+              <p className="text-xs text-muted-foreground">
+                Node type cannot be changed after creation. Delete and recreate if needed.
+              </p>
+            )}
           </div>
 
           {nodeType === 'decision' && (

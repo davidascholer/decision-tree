@@ -14,6 +14,7 @@ interface TreeNodeEditorProps {
   currentPathId: string
   onUpdatePath: (path: DecisionPath) => void
   depth?: number
+  onDeleteNode?: () => void
 }
 
 export function TreeNodeEditor({ 
@@ -21,11 +22,32 @@ export function TreeNodeEditor({
   paths, 
   currentPathId,
   onUpdatePath, 
-  depth = 0 
+  depth = 0,
+  onDeleteNode
 }: TreeNodeEditorProps) {
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const colors = useNodeColors()
+
+  const hasChildren = (node: DecisionPath | TreeNode): boolean => {
+    if (node.type === 'decision') {
+      return (node.conditions && node.conditions.length > 0) || false
+    }
+    if (node.type === 'condition') {
+      return !!node.next
+    }
+    return false
+  }
+
+  const handleDelete = () => {
+    if (hasChildren(path)) {
+      toast.error('Cannot delete node with children. Delete all child nodes first.')
+      return
+    }
+    if (onDeleteNode) {
+      onDeleteNode()
+    }
+  }
 
   const handleAddCondition = (_: string, conditionNode: TreeNode) => {
     if (path.type === 'decision') {
@@ -44,10 +66,18 @@ export function TreeNodeEditor({
   const handleDeleteCondition = (conditionId: string) => {
     if (path.type === 'decision') {
       const conditions = path.conditions || []
+      const conditionToDelete = conditions.find(c => c.id === conditionId)
+      
+      if (conditionToDelete && conditionToDelete.next) {
+        toast.error('Cannot delete condition with children. Delete the child node first.')
+        return
+      }
+      
       onUpdatePath({
         ...path,
         conditions: conditions.filter(c => c.id !== conditionId)
       })
+      toast.success('Condition deleted')
     }
   }
 
@@ -99,6 +129,8 @@ export function TreeNodeEditor({
 
   if (path.type === 'decision') {
     const nodeColors = getNodeColor(path.type)
+    const canDelete = depth > 0 && onDeleteNode
+    
     return (
       <div className="space-y-2">
         <div 
@@ -110,14 +142,29 @@ export function TreeNodeEditor({
             <div className="font-medium">{path.question}</div>
             <div className="text-xs opacity-80 font-mono mt-1">ID: {path.id}</div>
           </div>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => setEditDialogOpen(true)}
-            className="h-8 w-8 p-0"
-          >
-            <Pencil />
-          </Button>
+          <div className="flex gap-1">
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setEditDialogOpen(true)}
+              className="h-8 w-8 p-0"
+              title="Edit node"
+            >
+              <Pencil />
+            </Button>
+            {canDelete && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={handleDelete}
+                className="h-8 w-8 p-0"
+                title={hasChildren(path) ? "Cannot delete - has children" : "Delete node"}
+                disabled={hasChildren(path)}
+              >
+                <Trash className={hasChildren(path) ? 'opacity-30' : ''} />
+              </Button>
+            )}
+          </div>
         </div>
 
         {path.conditions && path.conditions.length > 0 && (
@@ -133,8 +180,10 @@ export function TreeNodeEditor({
                     variant="ghost"
                     onClick={() => handleDeleteCondition(condition.id)}
                     className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                    title={condition.next ? "Cannot delete - has children" : "Delete condition"}
+                    disabled={!!condition.next}
                   >
-                    <Trash />
+                    <Trash className={condition.next ? 'opacity-30' : ''} />
                   </Button>
                 </div>
                 {condition.type === 'condition' && (
@@ -196,6 +245,7 @@ interface ConditionNodeEditorProps {
   paths: DecisionPath[]
   currentPathId: string
   onUpdateCondition: (condition: Extract<TreeNode, { type: 'condition' }>) => void
+  onDeleteNode?: () => void
   depth: number
 }
 
@@ -204,11 +254,36 @@ function ConditionNodeEditor({
   paths, 
   currentPathId,
   onUpdateCondition,
+  onDeleteNode,
   depth
 }: ConditionNodeEditorProps) {
   const [addChildOpen, setAddChildOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const colors = useNodeColors()
+
+  const hasChildren = (node: TreeNode): boolean => {
+    if (node.type === 'decision') {
+      return (node.conditions && node.conditions.length > 0) || false
+    }
+    if (node.type === 'condition') {
+      return !!node.next
+    }
+    return false
+  }
+
+  const handleDelete = () => {
+    if (condition.next && hasChildren(condition.next)) {
+      toast.error('Cannot delete node with children. Delete all child nodes first.')
+      return
+    }
+    if (condition.next) {
+      toast.error('Cannot delete node with children. Delete the child node first.')
+      return
+    }
+    if (onDeleteNode) {
+      onDeleteNode()
+    }
+  }
 
   const handleAddChild = (_: string, newNode: TreeNode) => {
     onUpdateCondition({ ...condition, next: newNode })
@@ -269,14 +344,27 @@ function ConditionNodeEditor({
               <div className="font-medium">{next.question}</div>
               <div className="text-xs opacity-80 font-mono mt-1">ID: {next.id}</div>
             </div>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => setEditDialogOpen(true)}
-              className="h-8 w-8 p-0"
-            >
-              <Pencil />
-            </Button>
+            <div className="flex gap-1">
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setEditDialogOpen(true)}
+                className="h-8 w-8 p-0"
+                title="Edit node"
+              >
+                <Pencil />
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={handleDelete}
+                className="h-8 w-8 p-0"
+                title={hasChildren(next) ? "Cannot delete - has children" : "Delete node"}
+                disabled={hasChildren(next)}
+              >
+                <Trash className={hasChildren(next) ? 'opacity-30' : ''} />
+              </Button>
+            </div>
           </div>
 
           {next.conditions && next.conditions.length > 0 && (
@@ -369,14 +457,26 @@ function ConditionNodeEditor({
             <div className="font-medium">{getNodeLabel(next)}</div>
             <div className="text-xs opacity-80 font-mono mt-1">ID: {next.id}</div>
           </div>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => setEditDialogOpen(true)}
-            className="h-8 w-8 p-0"
-          >
-            <Pencil />
-          </Button>
+          <div className="flex gap-1">
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setEditDialogOpen(true)}
+              className="h-8 w-8 p-0"
+              title="Edit node"
+            >
+              <Pencil />
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={handleDelete}
+              className="h-8 w-8 p-0"
+              title="Delete node"
+            >
+              <Trash />
+            </Button>
+          </div>
         </div>
 
         <AddNodeDialog
