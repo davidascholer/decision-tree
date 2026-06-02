@@ -1,12 +1,13 @@
 import { TreeNode, DecisionPath } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Plus, Trash, Pencil, DiamondsFour, CheckCircle, FlowArrow, CaretDown, CaretRight } from '@phosphor-icons/react'
-import { useState } from 'react'
+import { Plus, Trash, Pencil, DiamondsFour, CheckCircle, FlowArrow, CaretDown, CaretRight, WarningCircle } from '@phosphor-icons/react'
+import { useState, useMemo } from 'react'
 import { AddNodeDialog } from './AddNodeDialog'
-import { generateId } from '@/lib/tree-utils'
+import { generateId, findIncompleteConditions } from '@/lib/tree-utils'
 import { useNodeColors } from '@/hooks/use-node-colors'
 import { toast } from 'sonner'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 
 interface TreeNodeEditorProps {
   path: DecisionPath
@@ -31,6 +32,10 @@ export function TreeNodeEditor({
   const [conditionToEdit, setConditionToEdit] = useState<Extract<TreeNode, { type: 'condition' }> | null>(null)
   const [isExpanded, setIsExpanded] = useState(true)
   const colors = useNodeColors()
+  
+  const incompleteConditionIds = useMemo(() => {
+    return new Set(findIncompleteConditions(path))
+  }, [path])
 
   const hasChildren = (node: DecisionPath | TreeNode): boolean => {
     if (node.type === 'decision') {
@@ -133,9 +138,21 @@ export function TreeNodeEditor({
   if (path.type === 'decision') {
     const nodeColors = getNodeColor(path.type)
     const canDelete = depth > 0 && onDeleteNode
+    const hasIncompleteConditions = incompleteConditionIds.size > 0
     
     return (
       <div className="space-y-2">
+        {hasIncompleteConditions && depth === 0 && (
+          <Alert variant="destructive" className="border-2">
+            <WarningCircle className="h-5 w-5" weight="fill" />
+            <AlertTitle>Incomplete Decision Tree</AlertTitle>
+            <AlertDescription>
+              This tree has {incompleteConditionIds.size} incomplete condition{incompleteConditionIds.size !== 1 ? 's' : ''} that need{incompleteConditionIds.size === 1 ? 's' : ''} an outcome or path reference. 
+              Every condition branch must end with either an outcome or a path reference.
+            </AlertDescription>
+          </Alert>
+        )}
+        
         <div 
           className="flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer hover:opacity-90 transition-opacity" 
           style={{ backgroundColor: nodeColors.bg, color: nodeColors.fg, borderColor: nodeColors.fg }}
@@ -180,52 +197,66 @@ export function TreeNodeEditor({
           <>
             {path.conditions && path.conditions.length > 0 && (
               <div className="ml-6 space-y-3">
-                {path.conditions.map((condition) => (
-                  <div key={condition.id} className="border-l-2 border-border pl-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <Badge variant="outline" className="font-mono">
-                        {condition.description}
-                      </Badge>
-                      <div className="flex gap-1">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => {
-                            setConditionToEdit(condition)
-                            setEditConditionDialogOpen(true)
-                          }}
-                          className="h-8 w-8 p-0"
-                          title="Edit condition"
-                        >
-                          <Pencil />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleDeleteCondition(condition.id)}
-                          className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                          title={condition.next ? "Cannot delete - has children" : "Delete condition"}
-                          disabled={!!condition.next}
-                        >
-                          <Trash className={condition.next ? 'opacity-30' : ''} />
-                        </Button>
+                {path.conditions.map((condition) => {
+                  const isIncomplete = incompleteConditionIds.has(condition.id)
+                  return (
+                    <div key={condition.id} className="border-l-2 border-border pl-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <Badge 
+                            variant="outline" 
+                            className={`font-mono ${isIncomplete ? 'border-destructive text-destructive border-2 animate-pulse' : ''}`}
+                          >
+                            {condition.description}
+                          </Badge>
+                          {isIncomplete && (
+                            <div className="flex items-center gap-1 text-destructive text-xs font-medium">
+                              <WarningCircle size={16} weight="fill" />
+                              <span>Missing end node</span>
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex gap-1">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setConditionToEdit(condition)
+                              setEditConditionDialogOpen(true)
+                            }}
+                            className="h-8 w-8 p-0"
+                            title="Edit condition"
+                          >
+                            <Pencil />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleDeleteCondition(condition.id)}
+                            className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                            title={condition.next ? "Cannot delete - has children" : "Delete condition"}
+                            disabled={!!condition.next}
+                          >
+                            <Trash className={condition.next ? 'opacity-30' : ''} />
+                          </Button>
+                        </div>
                       </div>
+                      {condition.type === 'condition' && (
+                        <div className="ml-4">
+                          <ConditionNodeEditor
+                            condition={condition}
+                            paths={paths}
+                            currentPathId={currentPathId}
+                            onUpdateCondition={(updated) => 
+                              handleUpdateCondition(condition.id, updated)
+                            }
+                            depth={depth + 1}
+                          />
+                        </div>
+                      )}
                     </div>
-                    {condition.type === 'condition' && (
-                      <div className="ml-4">
-                        <ConditionNodeEditor
-                          condition={condition}
-                          paths={paths}
-                          currentPathId={currentPathId}
-                          onUpdateCondition={(updated) => 
-                            handleUpdateCondition(condition.id, updated)
-                          }
-                          depth={depth + 1}
-                        />
-                      </div>
-                    )}
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
 

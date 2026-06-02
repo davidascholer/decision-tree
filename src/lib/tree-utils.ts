@@ -309,3 +309,24 @@ export function generateTextRepresentation(
 
   return lines.join('\n')
 }
+
+export function findIncompleteConditions(node: TreeNode | DecisionPath): string[] {
+  const incompleteIds: string[] = []
+
+  function checkNode(n: TreeNode | DecisionPath) {
+    if (n.type === 'condition') {
+      if (!n.next) {
+        incompleteIds.push(n.id)
+      } else {
+        checkNode(n.next)
+      }
+    } else if (n.type === 'decision') {
+      if (n.conditions && n.conditions.length > 0) {
+        n.conditions.forEach(condition => checkNode(condition))
+      }
+    }
+  }
+
+  checkNode(node)
+  return incompleteIds
+}
