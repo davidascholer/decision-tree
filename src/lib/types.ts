@@ -4,7 +4,7 @@ export interface DecisionNode {
   id: string
   type: 'decision'
   question: string
-  branches: Branch[]
+  condition?: ConditionNode
 }
 
 export interface OutcomeNode {
@@ -23,21 +23,21 @@ export interface ConditionNode {
   id: string
   type: 'condition'
   label: string
-  node: TreeNode | null
+  next?: TreeNode
 }
 
 export type TreeNode = DecisionNode | OutcomeNode | PathReferenceNode | ConditionNode
 
-export interface Branch {
-  id: string
-  label: string
-  node: TreeNode
-}
-
 export interface DecisionPath {
   id: string
   name: string
-  node: TreeNode
+  type: NodeType
+  question?: string
+  condition?: ConditionNode
+  description?: string
+  pathId?: string
+  label?: string
+  next?: TreeNode
 }
 
 export interface DecisionTreeData {

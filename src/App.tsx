@@ -28,12 +28,8 @@ function App() {
     const newPath: DecisionPath = {
       id: generateId(),
       name: newPathName.trim(),
-      node: {
-        id: generateId(),
-        type: 'decision',
-        question: 'Start',
-        branches: []
-      }
+      type: 'decision',
+      question: 'Start'
     }
 
     setPaths((current) => [...(current || []), newPath])
@@ -52,11 +48,11 @@ function App() {
     toast.success(`Path "${path?.name}" deleted`)
   }
 
-  const handleUpdatePath = (pathId: string, updatedNode: TreeNode) => {
+  const handleUpdatePath = (pathId: string, updatedPath: DecisionPath) => {
     setPaths((current) =>
       (current || []).map(path =>
         path.id === pathId
-          ? { ...path, node: updatedNode }
+          ? updatedPath
           : path
       )
     )
@@ -119,7 +115,7 @@ function App() {
   const handleCopyText = () => {
     if (!selectedPath) return
     
-    const textRepresentation = generateTextRepresentation(selectedPath.node, currentPaths)
+    const textRepresentation = generateTextRepresentation(selectedPath, currentPaths)
     navigator.clipboard.writeText(textRepresentation)
     toast.success('Text representation copied to clipboard')
   }

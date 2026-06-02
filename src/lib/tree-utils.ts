@@ -1,30 +1,28 @@
-import { DecisionPath, TreeNode, DecisionNode, Branch } from './types'
+import { DecisionPath, TreeNode, DecisionNode, ConditionNode } from './types'
 
 export function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
 }
 
-export function findNodeById(node: TreeNode, id: string): TreeNode | null {
+export function findNodeById(node: TreeNode | DecisionPath, id: string): TreeNode | DecisionPath | null {
   if (node.id === id) return node
   
-  if (node.type === 'decision') {
-    for (const branch of node.branches) {
-      const found = findNodeById(branch.node, id)
-      if (found) return found
-    }
+  if (node.type === 'decision' && node.condition) {
+    const found = findNodeById(node.condition, id)
+    if (found) return found
   }
   
-  if (node.type === 'condition' && node.node) {
-    const found = findNodeById(node.node, id)
+  if (node.type === 'condition' && node.next) {
+    const found = findNodeById(node.next, id)
     if (found) return found
   }
   
   return null
 }
 
-export function findNodeInPaths(paths: DecisionPath[], nodeId: string): TreeNode | null {
+export function findNodeInPaths(paths: DecisionPath[], nodeId: string): TreeNode | DecisionPath | null {
   for (const path of paths) {
-    const found = findNodeById(path.node, nodeId)
+    const found = findNodeById(path, nodeId)
     if (found) return found
   }
   return null
@@ -42,7 +40,7 @@ export function hasCircularReference(
   
   const visited = new Set<string>()
   
-  function checkNode(node: TreeNode): boolean {
+  function checkNode(node: TreeNode | DecisionPath): boolean {
     if (node.type === 'path-reference') {
       if (node.pathId === currentPathId) return true
       if (visited.has(node.pathId)) return false
@@ -50,67 +48,46 @@ export function hasCircularReference(
       visited.add(node.pathId)
       const referencedPath = paths.find(p => p.id === node.pathId)
       if (referencedPath) {
-        return checkNode(referencedPath.node)
+        return checkNode(referencedPath)
       }
-    } else if (node.type === 'decision') {
-      for (const branch of node.branches) {
-        if (checkNode(branch.node)) return true
-      }
-    } else if (node.type === 'condition' && node.node) {
-      return checkNode(node.node)
+    } else if (node.type === 'decision' && node.condition) {
+      return checkNode(node.condition)
+    } else if (node.type === 'condition' && node.next) {
+      return checkNode(node.next)
     }
     return false
   }
   
-  return checkNode(targetPath.node)
+  return checkNode(targetPath)
 }
 
-export function updateNodeInTree(node: TreeNode, id: string, updater: (node: TreeNode) => TreeNode): TreeNode {
+export function updateNodeInTree(node: TreeNode | DecisionPath, id: string, updater: (node: TreeNode | DecisionPath) => TreeNode | DecisionPath): TreeNode | DecisionPath {
   if (node.id === id) {
     return updater(node)
   }
   
-  if (node.type === 'decision') {
+  if (node.type === 'decision' && node.condition) {
     return {
       ...node,
-      branches: node.branches.map(branch => ({
-        ...branch,
-        node: updateNodeInTree(branch.node, id, updater)
-      }))
+      condition: updateNodeInTree(node.condition, id, updater) as ConditionNode
     }
   }
   
-  if (node.type === 'condition') {
+  if (node.type === 'condition' && node.next) {
     return {
       ...node,
-      node: node.node ? updateNodeInTree(node.node, id, updater) : null
+      next: updateNodeInTree(node.next, id, updater) as TreeNode
     }
   }
   
   return node
 }
 
-export function deleteNodeFromTree(node: TreeNode, branchId: string): TreeNode | null {
-  if (node.type === 'decision') {
-    const branchIndex = node.branches.findIndex(b => b.id === branchId)
-    if (branchIndex !== -1) {
-      const newBranches = node.branches.filter((_, i) => i !== branchIndex)
-      return {
-        ...node,
-        branches: newBranches
-      }
-    }
-    
-    return {
-      ...node,
-      branches: node.branches.map(branch => ({
-        ...branch,
-        node: deleteNodeFromTree(branch.node, branchId) || branch.node
-      })).filter(branch => branch.node !== null)
-    }
+export function deleteConditionFromDecision(node: DecisionNode): DecisionNode {
+  return {
+    ...node,
+    condition: undefined
   }
-  
-  return node
 }
 
 export function createExamplePaths(): DecisionPath[] {
@@ -121,114 +98,111 @@ export function createExamplePaths(): DecisionPath[] {
   const approvalPath: DecisionPath = {
     id: approvalPathId,
     name: 'Approval Workflow',
-    node: {
+    type: 'decision',
+    question: 'Does request require manager approval?',
+    condition: {
       id: generateId(),
-      type: 'decision',
-      question: 'Does request require manager approval?',
-      branches: [{
+      type: 'condition',
+      label: 'Yes',
+      next: {
         id: generateId(),
-        label: 'Yes',
-        node: {
+        type: 'decision',
+        question: 'Is manager available?',
+        condition: {
           id: generateId(),
           type: 'condition',
-          label: 'Approved',
-          node: {
+          label: 'Available',
+          next: {
             id: generateId(),
             type: 'outcome',
             description: 'Request approved and forwarded to fulfillment team'
           }
         }
-      }]
+      }
     }
   }
   
   const requestProcessing: DecisionPath = {
     id: requestProcessingId,
     name: 'Request Processing',
-    node: {
+    type: 'decision',
+    question: 'Is the customer account in good standing?',
+    condition: {
       id: generateId(),
-      type: 'decision',
-      question: 'Is the customer account in good standing?',
-      branches: [{
+      type: 'condition',
+      label: 'Active',
+      next: {
         id: generateId(),
-        label: 'Yes',
-        node: {
+        type: 'decision',
+        question: 'Does customer have sufficient credit limit?',
+        condition: {
           id: generateId(),
           type: 'condition',
-          label: 'Active',
-          node: {
+          label: 'Verified',
+          next: {
             id: generateId(),
             type: 'decision',
-            question: 'Does customer have sufficient credit limit?',
-            branches: [{
+            question: 'Does order exceed standard limits?',
+            condition: {
               id: generateId(),
-              label: 'Yes',
-              node: {
+              type: 'condition',
+              label: 'Standard',
+              next: {
                 id: generateId(),
-                type: 'condition',
-                label: 'Verified',
-                node: {
-                  id: generateId(),
-                  type: 'path-reference',
-                  pathId: approvalPathId
-                }
+                type: 'path-reference',
+                pathId: approvalPathId
               }
-            }]
+            }
           }
         }
-      }]
+      }
     }
   }
   
   const routingLogic: DecisionPath = {
     id: routingLogicId,
     name: 'Order Routing Logic',
-    node: {
+    type: 'decision',
+    question: 'Is order urgent?',
+    condition: {
       id: generateId(),
-      type: 'decision',
-      question: 'Is order urgent?',
-      branches: [{
+      type: 'condition',
+      label: 'Express',
+      next: {
         id: generateId(),
-        label: 'Yes',
-        node: {
+        type: 'decision',
+        question: 'Is express shipping available in customer region?',
+        condition: {
           id: generateId(),
           type: 'condition',
-          label: 'Express',
-          node: {
+          label: 'Available',
+          next: {
             id: generateId(),
             type: 'decision',
-            question: 'Is express shipping available in customer region?',
-            branches: [{
+            question: 'Does customer accept express shipping surcharge?',
+            condition: {
               id: generateId(),
-              label: 'Yes',
-              node: {
+              type: 'condition',
+              label: 'Confirmed',
+              next: {
                 id: generateId(),
-                type: 'condition',
-                label: 'Available',
-                node: {
+                type: 'decision',
+                question: 'Is warehouse operational?',
+                condition: {
                   id: generateId(),
-                  type: 'decision',
-                  question: 'Does customer accept express shipping surcharge?',
-                  branches: [{
+                  type: 'condition',
+                  label: 'Operational',
+                  next: {
                     id: generateId(),
-                    label: 'Yes',
-                    node: {
-                      id: generateId(),
-                      type: 'condition',
-                      label: 'Confirmed',
-                      node: {
-                        id: generateId(),
-                        type: 'outcome',
-                        description: 'Route to express fulfillment center with 24h SLA'
-                      }
-                    }
-                  }]
+                    type: 'outcome',
+                    description: 'Route to express fulfillment center with 24h SLA'
+                  }
                 }
               }
-            }]
+            }
           }
         }
-      }]
+      }
     }
   }
   
@@ -236,7 +210,7 @@ export function createExamplePaths(): DecisionPath[] {
 }
 
 export function generateTextRepresentation(
-  node: TreeNode,
+  node: TreeNode | DecisionPath,
   paths: DecisionPath[],
   indent: number = 0,
   prefix: string = '',
@@ -247,31 +221,26 @@ export function generateTextRepresentation(
 
   if (node.type === 'decision') {
     lines.push(`${indentStr}${prefix}${node.question}`)
-    node.branches.forEach((branch, index) => {
-      const isLast = index === node.branches.length - 1
-      const branchPrefix = isLast ? '└─ ' : '├─ '
-      const childPrefix = isLast ? '   ' : '│  '
-      
-      lines.push(`${indentStr}${branchPrefix}[${branch.label}]`)
+    if (node.condition) {
       lines.push(
         generateTextRepresentation(
-          branch.node,
-          paths,
-          indent + 1,
-          childPrefix,
-          visitedPaths
-        )
-      )
-    })
-  } else if (node.type === 'condition') {
-    lines.push(`${indentStr}${prefix}[${node.label}]`)
-    if (node.node) {
-      lines.push(
-        generateTextRepresentation(
-          node.node,
+          node.condition,
           paths,
           indent,
           prefix,
+          visitedPaths
+        )
+      )
+    }
+  } else if (node.type === 'condition') {
+    lines.push(`${indentStr}${prefix}└─ [${node.label}]`)
+    if (node.next) {
+      lines.push(
+        generateTextRepresentation(
+          node.next,
+          paths,
+          indent + 1,
+          '   ',
           visitedPaths
         )
       )
@@ -288,7 +257,7 @@ export function generateTextRepresentation(
         visitedPaths.add(node.pathId)
         lines.push(
           generateTextRepresentation(
-            referencedPath.node,
+            referencedPath,
             paths,
             indent + 1,
             '  ',
