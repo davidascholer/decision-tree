@@ -213,6 +213,37 @@ export function createExamplePaths(): DecisionPath[] {
   return [approvalPath, requestProcessing, routingLogic]
 }
 
+export function isPathReferencedByOthers(pathId: string, paths: DecisionPath[]): { isReferenced: boolean; referencedBy: string[] } {
+  const referencedBy: string[] = []
+  
+  function checkNode(node: TreeNode | DecisionPath): boolean {
+    if (node.type === 'path-reference' && node.pathId === pathId) {
+      return true
+    }
+    
+    if (node.type === 'decision' && node.conditions) {
+      return node.conditions.some(condition => checkNode(condition))
+    }
+    
+    if (node.type === 'condition' && node.next) {
+      return checkNode(node.next)
+    }
+    
+    return false
+  }
+  
+  for (const path of paths) {
+    if (path.id !== pathId && checkNode(path)) {
+      referencedBy.push(path.name)
+    }
+  }
+  
+  return {
+    isReferenced: referencedBy.length > 0,
+    referencedBy
+  }
+}
+
 export function generateTextRepresentation(
   node: TreeNode | DecisionPath,
   paths: DecisionPath[],

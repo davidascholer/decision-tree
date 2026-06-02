@@ -1,11 +1,11 @@
 import { useKV } from '@github/spark/hooks'
 import { DecisionPath, TreeNode } from './lib/types'
-import { generateId, createExamplePaths, generateTextRepresentation } from './lib/tree-utils'
+import { generateId, createExamplePaths, generateTextRepresentation, isPathReferencedByOthers } from './lib/tree-utils'
 import { Button } from './components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs'
 import { Input } from './components/ui/input'
-import { Plus, Trash, List, Tree, Download, Upload, Code, Copy, Sparkle, TextAa, ArrowCounterClockwise, ArrowClockwise } from '@phosphor-icons/react'
+import { Plus, Trash, List, Tree, Download, Upload, Code, Copy, Sparkle, TextAa, ArrowCounterClockwise, ArrowClockwise, Warning } from '@phosphor-icons/react'
 import { useState, useRef, useEffect } from 'react'
 import { TreeNodeEditor } from './components/TreeNodeEditor'
 import { Flowchart } from './components/Flowchart'
@@ -13,12 +13,24 @@ import { SyntaxHighlightedText } from './components/SyntaxHighlightedText'
 import { toast } from 'sonner'
 import { Toaster } from './components/ui/sonner'
 import { useUndoRedo } from './hooks/use-undo-redo'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from './components/ui/alert-dialog'
 
 function App() {
   const [paths, setPaths] = useKV<DecisionPath[]>('decision-paths', [])
   const [selectedPathId, setSelectedPathId] = useState<string | undefined>(undefined)
   const [newPathName, setNewPathName] = useState('')
   const [showNewPathInput, setShowNewPathInput] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [pathToDelete, setPathToDelete] = useState<{ id: string; name: string } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const currentPaths = paths || []
@@ -73,13 +85,39 @@ function App() {
 
   const handleDeletePath = (pathId: string) => {
     const path = currentPaths.find(p => p.id === pathId)
-    const newPaths = currentPaths.filter(p => p.id !== pathId)
+    if (!path) return
+    
+    const { isReferenced, referencedBy } = isPathReferencedByOthers(pathId, currentPaths)
+    
+    if (isReferenced) {
+      toast.error(
+        `Cannot delete "${path.name}". This path is referenced by: ${referencedBy.join(', ')}. Remove all references first.`,
+        { duration: 5000 }
+      )
+      return
+    }
+    
+    setPathToDelete({ id: pathId, name: path.name })
+    setDeleteDialogOpen(true)
+  }
+
+  const confirmDeletePath = () => {
+    if (!pathToDelete) return
+    
+    const newPaths = currentPaths.filter(p => p.id !== pathToDelete.id)
     setPaths(newPaths)
     pushState(newPaths)
-    if (selectedPathId === pathId) {
+    if (selectedPathId === pathToDelete.id) {
       setSelectedPathId(undefined)
     }
-    toast.success(`Path "${path?.name}" deleted`)
+    toast.success(`Path "${pathToDelete.name}" deleted`)
+    setDeleteDialogOpen(false)
+    setPathToDelete(null)
+  }
+
+  const cancelDeletePath = () => {
+    setDeleteDialogOpen(false)
+    setPathToDelete(null)
   }
 
   const handleUpdatePath = (pathId: string, updatedPath: DecisionPath) => {
@@ -174,6 +212,33 @@ function App() {
         onChange={handleImportJSON}
         className="hidden"
       />
+      
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent className="border-2 border-accent/20">
+          <AlertDialogHeader>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-2 rounded-full bg-destructive/10">
+                <Warning size={24} className="text-destructive" weight="duotone" />
+              </div>
+              <AlertDialogTitle className="text-xl">Delete Decision Path?</AlertDialogTitle>
+            </div>
+            <AlertDialogDescription className="text-base">
+              Are you sure you want to delete <span className="font-semibold text-foreground">"{pathToDelete?.name}"</span>? 
+              This action cannot be undone and all decision logic within this path will be permanently removed.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={cancelDeletePath}>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={confirmDeletePath}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete Path
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      
       <div className="container mx-auto p-6 max-w-7xl">
         <header className="mb-8">
           <div className="flex items-start justify-between gap-4">
