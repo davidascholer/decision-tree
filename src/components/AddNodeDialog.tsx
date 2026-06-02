@@ -14,7 +14,7 @@ interface AddNodeDialogProps {
   onAdd: (branchLabel: string, node: TreeNode) => void
   paths: DecisionPath[]
   currentPathId: string
-  mode: 'branch' | 'edit'
+  mode: 'output' | 'edit'
   initialNode?: TreeNode
 }
 
@@ -28,7 +28,7 @@ export function AddNodeDialog({
   initialNode
 }: AddNodeDialogProps) {
   const [nodeType, setNodeType] = useState<'decision' | 'outcome' | 'path-reference'>('decision')
-  const [branchLabel, setBranchLabel] = useState('')
+  const [outputLabel, setOutputLabel] = useState('')
   const [question, setQuestion] = useState('')
   const [description, setDescription] = useState('')
   const [selectedPathId, setSelectedPathId] = useState('')
@@ -44,7 +44,7 @@ export function AddNodeDialog({
         setSelectedPathId(initialNode.pathId)
       }
     } else if (open) {
-      setBranchLabel('')
+      setOutputLabel('')
       setQuestion('')
       setDescription('')
       setSelectedPathId('')
@@ -76,12 +76,12 @@ export function AddNodeDialog({
       }
     }
 
-    onAdd(branchLabel.trim(), node)
+    onAdd(outputLabel.trim(), node)
     onOpenChange(false)
   }
 
   const isValid = () => {
-    if (mode === 'branch' && !branchLabel.trim()) return false
+    if (mode === 'output' && !outputLabel.trim()) return false
     if (nodeType === 'decision' && !question.trim()) return false
     if (nodeType === 'outcome' && !description.trim()) return false
     if (nodeType === 'path-reference' && !selectedPathId) return false
@@ -96,25 +96,25 @@ export function AddNodeDialog({
       <DialogContent className="sm:max-w-[525px]">
         <DialogHeader>
           <DialogTitle>
-            {mode === 'edit' ? 'Edit Node' : 'Add Branch'}
+            {mode === 'edit' ? 'Edit Node' : 'Add Output'}
           </DialogTitle>
           <DialogDescription>
             {mode === 'edit' 
               ? 'Update the node details below.'
-              : 'Add a new branch to this decision point.'
+              : 'Add an output to this decision point.'
             }
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          {mode === 'branch' && (
+          {mode === 'output' && (
             <div className="space-y-2">
-              <Label htmlFor="branch-label">Branch Label</Label>
+              <Label htmlFor="output-label">Output Label</Label>
               <Input
-                id="branch-label"
+                id="output-label"
                 placeholder="e.g., Yes, No, Maybe"
-                value={branchLabel}
-                onChange={(e) => setBranchLabel(e.target.value)}
+                value={outputLabel}
+                onChange={(e) => setOutputLabel(e.target.value)}
               />
             </div>
           )}

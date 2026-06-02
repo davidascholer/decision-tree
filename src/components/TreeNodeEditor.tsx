@@ -7,6 +7,7 @@ import { useState } from 'react'
 import { AddNodeDialog } from './AddNodeDialog'
 import { generateId } from '@/lib/tree-utils'
 import { useNodeColors } from '@/hooks/use-node-colors'
+import { toast } from 'sonner'
 
 interface TreeNodeEditorProps {
   node: TreeNode
@@ -31,6 +32,10 @@ export function TreeNodeEditor({
 
   const handleAddBranch = (branchLabel: string, branchNode: TreeNode) => {
     if (node.type === 'decision') {
+      if (node.branches.length >= 1) {
+        toast.error('A decision can only have one output')
+        return
+      }
       onUpdateNode({
         ...node,
         branches: [
@@ -164,17 +169,19 @@ export function TreeNodeEditor({
           </Accordion>
         )}
 
-        <div className="ml-6 pl-4">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setAddDialogOpen(true)}
-            className="w-full"
-          >
-            <Plus />
-            Add Branch
-          </Button>
-        </div>
+        {node.branches.length === 0 && (
+          <div className="ml-6 pl-4">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setAddDialogOpen(true)}
+              className="w-full"
+            >
+              <Plus />
+              Add Output
+            </Button>
+          </div>
+        )}
 
         <AddNodeDialog
           open={addDialogOpen}
@@ -182,7 +189,7 @@ export function TreeNodeEditor({
           onAdd={handleAddBranch}
           paths={paths}
           currentPathId={currentPathId}
-          mode="branch"
+          mode="output"
         />
 
         <AddNodeDialog
