@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Button } from './ui/button'
 import { Switch } from './ui/switch'
 import { Label } from './ui/label'
-import { Plus, Minus, ArrowsOut, Image as ImageIcon, FileCode, Download, Copy } from '@phosphor-icons/react'
+import { Plus, Minus, ArrowsOut, Image as ImageIcon, FileCode, Download, Copy, FrameCorners } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import {
   DropdownMenu,
@@ -578,6 +578,72 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
     setPan({ x: 0, y: 0 })
   }
 
+  const handleZoomToFit = () => {
+    const container = containerRef.current
+    if (!container || !selectedPath) return
+
+    if (animationFrameRef.current !== null) {
+      cancelAnimationFrame(animationFrameRef.current)
+    }
+
+    const nodes = getAllNodes(selectedPath, paths)
+    if (nodes.length === 0) return
+
+    let minX = Infinity, minY = Infinity
+    let maxX = -Infinity, maxY = -Infinity
+
+    nodes.forEach(node => {
+      minX = Math.min(minX, node.x - node.width / 2)
+      maxX = Math.max(maxX, node.x + node.width / 2)
+      minY = Math.min(minY, node.y - node.height / 2)
+      maxY = Math.max(maxY, node.y + node.height / 2)
+    })
+
+    const contentWidth = maxX - minX
+    const contentHeight = maxY - minY
+    const rect = container.getBoundingClientRect()
+    
+    const padding = 80
+    const scaleX = (rect.width - padding * 2) / contentWidth
+    const scaleY = (rect.height - padding * 2) / contentHeight
+    const targetZoom = Math.min(scaleX, scaleY, 2)
+
+    const contentCenterX = (minX + maxX) / 2
+    const contentCenterY = (minY + maxY) / 2
+    
+    const newPanX = rect.width / 2 - contentCenterX * targetZoom
+    const newPanY = rect.height / 2 - contentCenterY * targetZoom
+
+    setIsAnimating(true)
+    
+    const startZoom = zoom
+    const startPanX = pan.x
+    const startPanY = pan.y
+    const duration = 500
+    const startTime = Date.now()
+    
+    const animate = () => {
+      const elapsed = Date.now() - startTime
+      const progress = Math.min(elapsed / duration, 1)
+      const eased = 1 - Math.pow(1 - progress, 3)
+      
+      setZoom(startZoom + (targetZoom - startZoom) * eased)
+      setPan({
+        x: startPanX + (newPanX - startPanX) * eased,
+        y: startPanY + (newPanY - startPanY) * eased
+      })
+      
+      if (progress < 1) {
+        animationFrameRef.current = requestAnimationFrame(animate)
+      } else {
+        animationFrameRef.current = null
+        setIsAnimating(false)
+      }
+    }
+    
+    animationFrameRef.current = requestAnimationFrame(animate)
+  }
+
   const handleExportPNG = () => {
     const canvas = canvasRef.current
     if (!canvas || !selectedPath) return
@@ -889,6 +955,16 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
           </DropdownMenuContent>
         </DropdownMenu>
         
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={handleZoomToFit}
+          title="Zoom to Fit"
+          className="shadow-lg"
+        >
+          <FrameCorners weight="bold" />
+          Fit
+        </Button>
         <Button
           size="sm"
           variant="secondary"
