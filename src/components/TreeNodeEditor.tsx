@@ -210,7 +210,7 @@ export function TreeNodeEditor({
             className="w-full"
           >
             <Plus />
-            Add Output
+            Add Condition
           </Button>
         </div>
 
@@ -407,7 +407,7 @@ function ConditionNodeEditor({
               className="w-full"
             >
               <Plus />
-              Add Output
+              Add Condition
             </Button>
           </div>
 
