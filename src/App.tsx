@@ -1,11 +1,11 @@
 import { useKV } from '@github/spark/hooks'
 import { DecisionPath, TreeNode } from './lib/types'
-import { generateId, createExamplePaths } from './lib/tree-utils'
+import { generateId, createExamplePaths, generateTextRepresentation } from './lib/tree-utils'
 import { Button } from './components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs'
 import { Input } from './components/ui/input'
-import { Plus, Trash, List, Tree, Download, Upload, Code, Copy, Sparkle } from '@phosphor-icons/react'
+import { Plus, Trash, List, Tree, Download, Upload, Code, Copy, Sparkle, TextAa } from '@phosphor-icons/react'
 import { useState, useRef } from 'react'
 import { TreeNodeEditor } from './components/TreeNodeEditor'
 import { Flowchart } from './components/Flowchart'
@@ -113,6 +113,14 @@ function App() {
     const jsonString = JSON.stringify(selectedPath, null, 2)
     navigator.clipboard.writeText(jsonString)
     toast.success('JSON copied to clipboard')
+  }
+
+  const handleCopyText = () => {
+    if (!selectedPath) return
+    
+    const textRepresentation = generateTextRepresentation(selectedPath.node, currentPaths)
+    navigator.clipboard.writeText(textRepresentation)
+    toast.success('Text representation copied to clipboard')
   }
 
   const handleLoadExample = () => {
@@ -264,7 +272,7 @@ function App() {
             <div className="lg:col-span-3">
               {selectedPath ? (
                 <Tabs defaultValue="editor" className="w-full">
-                  <TabsList className="grid w-full grid-cols-3 mb-6">
+                  <TabsList className="grid w-full grid-cols-4 mb-6">
                     <TabsTrigger value="editor" className="flex items-center gap-2">
                       <List />
                       <span>Editor</span>
@@ -272,6 +280,10 @@ function App() {
                     <TabsTrigger value="flowchart" className="flex items-center gap-2">
                       <Tree />
                       <span>Flowchart</span>
+                    </TabsTrigger>
+                    <TabsTrigger value="text" className="flex items-center gap-2">
+                      <TextAa />
+                      <span>Text</span>
                     </TabsTrigger>
                     <TabsTrigger value="json" className="flex items-center gap-2">
                       <Code />
@@ -301,6 +313,27 @@ function App() {
                     <Card className="h-[600px]">
                       <CardContent className="p-0 h-full">
                         <Flowchart paths={currentPaths} selectedPathId={selectedPathId} />
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+
+                  <TabsContent value="text">
+                    <Card>
+                      <CardHeader>
+                        <div className="flex items-center justify-between">
+                          <CardTitle>Text Representation</CardTitle>
+                          <Button onClick={handleCopyText} variant="outline" size="sm">
+                            <Copy />
+                            Copy to Clipboard
+                          </Button>
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="relative">
+                          <pre className="bg-muted p-4 rounded-lg overflow-auto max-h-[500px] text-sm font-mono whitespace-pre">
+                            {generateTextRepresentation(selectedPath.node, currentPaths)}
+                          </pre>
+                        </div>
                       </CardContent>
                     </Card>
                   </TabsContent>

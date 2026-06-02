@@ -225,3 +225,59 @@ export function createExamplePaths(): DecisionPath[] {
   
   return [targetPath, mainPath]
 }
+
+export function generateTextRepresentation(
+  node: TreeNode,
+  paths: DecisionPath[],
+  indent: number = 0,
+  prefix: string = '',
+  visitedPaths: Set<string> = new Set()
+): string {
+  const indentStr = '  '.repeat(indent)
+  const lines: string[] = []
+
+  if (node.type === 'decision') {
+    lines.push(`${indentStr}${prefix}${node.question}`)
+    node.branches.forEach((branch, index) => {
+      const isLast = index === node.branches.length - 1
+      const branchPrefix = isLast ? '└─ ' : '├─ '
+      const childPrefix = isLast ? '   ' : '│  '
+      
+      lines.push(`${indentStr}${branchPrefix}[${branch.label}]`)
+      lines.push(
+        generateTextRepresentation(
+          branch.node,
+          paths,
+          indent + 1,
+          childPrefix,
+          visitedPaths
+        )
+      )
+    })
+  } else if (node.type === 'outcome') {
+    lines.push(`${indentStr}${prefix}✓ ${node.description}`)
+  } else if (node.type === 'path-reference') {
+    const referencedPath = paths.find(p => p.id === node.pathId)
+    if (referencedPath) {
+      if (visitedPaths.has(node.pathId)) {
+        lines.push(`${indentStr}${prefix}↻ Path: ${referencedPath.name} (circular reference)`)
+      } else {
+        lines.push(`${indentStr}${prefix}→ Path: ${referencedPath.name}`)
+        visitedPaths.add(node.pathId)
+        lines.push(
+          generateTextRepresentation(
+            referencedPath.node,
+            paths,
+            indent + 1,
+            '  ',
+            visitedPaths
+          )
+        )
+      }
+    } else {
+      lines.push(`${indentStr}${prefix}→ Path: [Not Found]`)
+    }
+  }
+
+  return lines.join('\n')
+}
