@@ -197,17 +197,17 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
           .attr('rx', 10)
       }
 
-      const maxChars = nodeData.type === 'decision' ? 18 : 22
+      const maxChars = nodeData.type === 'decision' ? 14 : 18
       const wrappedLines = wrapText(nodeData.label, maxChars)
       
       const textGroup = g.append('text')
         .attr('text-anchor', 'middle')
         .attr('dominant-baseline', 'middle')
         .attr('fill', nodeData.type === 'start' ? 'oklch(0.98 0 0)' : 'oklch(0.15 0 0)')
-        .attr('font-size', 12)
+        .attr('font-size', 11)
         .attr('font-weight', 500)
       
-      const lineHeight = 14
+      const lineHeight = 13
       const totalHeight = wrappedLines.length * lineHeight
       const startY = -(totalHeight / 2) + (lineHeight / 2)
       
