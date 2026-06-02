@@ -84,6 +84,7 @@ const CONDITION_VERTICAL_OFFSET = 80
 export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const animationFrameRef = useRef<number | null>(null)
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const [isPanning, setIsPanning] = useState(false)
@@ -207,6 +208,11 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
       container.removeEventListener('mousemove', handleMouseMove)
       container.removeEventListener('mouseup', handleMouseUp)
       container.removeEventListener('click', handleClick)
+      
+      if (animationFrameRef.current !== null) {
+        cancelAnimationFrame(animationFrameRef.current)
+        animationFrameRef.current = null
+      }
     }
   }, [zoom, pan, isPanning, startPan, isAnimating, hoveredNode, selectedPath, paths])
 
@@ -316,6 +322,10 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
       const container = containerRef.current
       if (!container) return
       
+      if (animationFrameRef.current !== null) {
+        cancelAnimationFrame(animationFrameRef.current)
+      }
+      
       setIsAnimating(true)
       
       const rect = container.getBoundingClientRect()
@@ -345,13 +355,14 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
         })
         
         if (progress < 1) {
-          requestAnimationFrame(animate)
+          animationFrameRef.current = requestAnimationFrame(animate)
         } else {
+          animationFrameRef.current = null
           setIsAnimating(false)
         }
       }
       
-      requestAnimationFrame(animate)
+      animationFrameRef.current = requestAnimationFrame(animate)
     }
   }
 
