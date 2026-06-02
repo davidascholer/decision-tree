@@ -31,6 +31,7 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const [isPanning, setIsPanning] = useState(false)
   const [startPan, setStartPan] = useState({ x: 0, y: 0 })
+  const [isAnimating, setIsAnimating] = useState(false)
 
   useEffect(() => {
     const container = containerRef.current
@@ -55,7 +56,7 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
     }
 
     const handleMouseDown = (e: MouseEvent) => {
-      if (e.button === 0) {
+      if (e.button === 0 && !isAnimating) {
         setIsPanning(true)
         setStartPan({ x: e.clientX - pan.x, y: e.clientY - pan.y })
         container.style.cursor = 'grabbing'
@@ -87,7 +88,7 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
       window.removeEventListener('mousemove', handleMouseMove)
       window.removeEventListener('mouseup', handleMouseUp)
     }
-  }, [zoom, pan, isPanning, startPan])
+  }, [zoom, pan, isPanning, startPan, isAnimating])
 
   useEffect(() => {
     if (!svgRef.current) return
@@ -254,6 +255,50 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
       .data(nodes)
       .join('g')
       .attr('transform', d => `translate(${d.x},${d.y})`)
+      .style('cursor', 'pointer')
+      .on('dblclick', function(event, d) {
+        event.stopPropagation()
+        
+        const container = containerRef.current
+        if (!container) return
+        
+        setIsAnimating(true)
+        
+        const rect = container.getBoundingClientRect()
+        const centerX = rect.width / 2
+        const centerY = rect.height / 2
+        
+        const targetZoom = Math.min(zoom * 1.5, 3)
+        
+        const newPanX = centerX - (d.x + offsetX) * targetZoom
+        const newPanY = centerY - (d.y + offsetY) * targetZoom
+        
+        const startZoom = zoom
+        const startPanX = pan.x
+        const startPanY = pan.y
+        const duration = 500
+        const startTime = Date.now()
+        
+        const animate = () => {
+          const elapsed = Date.now() - startTime
+          const progress = Math.min(elapsed / duration, 1)
+          const eased = 1 - Math.pow(1 - progress, 3)
+          
+          setZoom(startZoom + (targetZoom - startZoom) * eased)
+          setPan({
+            x: startPanX + (newPanX - startPanX) * eased,
+            y: startPanY + (newPanY - startPanY) * eased
+          })
+          
+          if (progress < 1) {
+            requestAnimationFrame(animate)
+          } else {
+            setIsAnimating(false)
+          }
+        }
+        
+        requestAnimationFrame(animate)
+      })
 
     nodeGroup.each(function(d) {
       const g = d3.select(this)
@@ -373,7 +418,7 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
         style={{
           transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
           transformOrigin: '0 0',
-          transition: isPanning ? 'none' : 'transform 0.1s ease-out'
+          transition: isPanning || isAnimating ? 'none' : 'transform 0.1s ease-out'
         }}
       >
         <svg ref={svgRef} className="min-w-full min-h-full" />
