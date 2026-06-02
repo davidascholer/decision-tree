@@ -219,7 +219,20 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
     }
   }, [zoom, pan, isPanning, startPan, isAnimating, hoveredNode, selectedPath, paths, expandReferences])
 
-  const buildFlowTree = (node: TreeNode | DecisionPath, x: number, y: number, level: number, parent?: FlowNode, visitedPaths: Set<string> = new Set()): FlowNode => {
+  const buildFlowTree = (node: TreeNode | DecisionPath, x: number, y: number, level: number, parent?: FlowNode, visitedPaths: Set<string> = new Set()): FlowNode | null => {
+    if (node.type === 'path-reference' && expandReferences) {
+      const referencedPath = paths.find(p => p.id === node.pathId)
+      
+      if (referencedPath && !visitedPaths.has(node.pathId)) {
+        const newVisitedPaths = new Set(visitedPaths)
+        newVisitedPaths.add(node.pathId)
+        
+        return buildFlowTree(referencedPath, x, y, level, parent, newVisitedPaths)
+      }
+      
+      return null
+    }
+    
     const config = NODE_CONFIG[node.type] || NODE_CONFIG.decision
     
     const flowNode: FlowNode = {
@@ -247,8 +260,10 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
           const childY = y + config.height / 2 + CONDITION_VERTICAL_OFFSET
           
           const conditionNode = buildFlowTree(condition, childX, childY, level + 1, flowNode, visitedPaths)
-          conditionNode.conditionLabel = condition.description
-          flowNode.children.push(conditionNode)
+          if (conditionNode) {
+            conditionNode.conditionLabel = condition.description
+            flowNode.children.push(conditionNode)
+          }
         })
       }
     } else if (node.type === 'condition') {
@@ -256,22 +271,15 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
       if (node.next) {
         const nextY = y + config.height / 2 + VERTICAL_SPACING
         const nextNode = buildFlowTree(node.next, x, nextY, level + 1, flowNode, visitedPaths)
-        flowNode.children.push(nextNode)
+        if (nextNode) {
+          flowNode.children.push(nextNode)
+        }
       }
     } else if (node.type === 'outcome') {
       flowNode.label = node.description
     } else if (node.type === 'path-reference') {
       const referencedPath = paths.find(p => p.id === node.pathId)
       flowNode.label = referencedPath?.name || 'Unknown Path'
-      
-      if (expandReferences && referencedPath && !visitedPaths.has(node.pathId)) {
-        const newVisitedPaths = new Set(visitedPaths)
-        newVisitedPaths.add(node.pathId)
-        
-        const nextY = y + config.height / 2 + VERTICAL_SPACING
-        const expandedNode = buildFlowTree(referencedPath, x, nextY, level + 1, flowNode, newVisitedPaths)
-        flowNode.children.push(expandedNode)
-      }
     }
 
     return flowNode
@@ -300,7 +308,9 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
       1,
       rootNode
     )
-    rootNode.children.push(contentNode)
+    if (contentNode) {
+      rootNode.children.push(contentNode)
+    }
 
     const allNodes: FlowNode[] = []
     const traverse = (node: FlowNode) => {
