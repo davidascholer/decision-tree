@@ -431,8 +431,8 @@ function App() {
                                   <h4 className="font-semibold text-sm mb-3">Node Types</h4>
                                   <div className="space-y-3">
                                     <div className="flex gap-3">
-                                      <div className="flex-shrink-0 w-8 h-8 rounded-md flex items-center justify-center" style={{ backgroundColor: 'oklch(0.70 0.15 70)' }}>
-                                        <DiamondsFour weight="fill" size={20} style={{ color: 'oklch(0.25 0.05 70)' }} />
+                                      <div className="flex-shrink-0 w-8 h-8 rounded-md flex items-center justify-center" style={{ backgroundColor: 'oklch(0.72 0.15 195)' }}>
+                                        <DiamondsFour weight="fill" size={20} style={{ color: 'oklch(0.98 0 0)' }} />
                                       </div>
                                       <div className="flex-1">
                                         <div className="font-medium text-sm">Decision</div>
@@ -441,8 +441,8 @@ function App() {
                                     </div>
                                     
                                     <div className="flex gap-3">
-                                      <div className="flex-shrink-0 w-8 h-8 rounded-md flex items-center justify-center" style={{ backgroundColor: 'oklch(0.65 0.18 210)' }}>
-                                        <CheckCircle weight="fill" size={20} style={{ color: 'oklch(0.25 0.05 250)' }} />
+                                      <div className="flex-shrink-0 w-8 h-8 rounded-md flex items-center justify-center" style={{ backgroundColor: 'oklch(0.88 0.08 210)' }}>
+                                        <CheckCircle weight="fill" size={20} style={{ color: 'oklch(0.25 0.05 210)' }} />
                                       </div>
                                       <div className="flex-1">
                                         <div className="font-medium text-sm">Condition</div>
@@ -451,8 +451,8 @@ function App() {
                                     </div>
                                     
                                     <div className="flex gap-3">
-                                      <div className="flex-shrink-0 w-8 h-8 rounded-md flex items-center justify-center" style={{ backgroundColor: 'oklch(0.65 0.15 145)' }}>
-                                        <CheckCircle weight="fill" size={20} style={{ color: 'oklch(0.25 0.08 145)' }} />
+                                      <div className="flex-shrink-0 w-8 h-8 rounded-md flex items-center justify-center" style={{ backgroundColor: 'oklch(0.75 0.12 160)' }}>
+                                        <CheckCircle weight="fill" size={20} style={{ color: 'oklch(0.98 0 0)' }} />
                                       </div>
                                       <div className="flex-1">
                                         <div className="font-medium text-sm">Outcome</div>
@@ -461,8 +461,8 @@ function App() {
                                     </div>
                                     
                                     <div className="flex gap-3">
-                                      <div className="flex-shrink-0 w-8 h-8 rounded-md flex items-center justify-center" style={{ backgroundColor: 'oklch(0.60 0.15 290)' }}>
-                                        <FlowArrow weight="fill" size={20} style={{ color: 'oklch(0.25 0.05 290)' }} />
+                                      <div className="flex-shrink-0 w-8 h-8 rounded-md flex items-center justify-center" style={{ backgroundColor: 'oklch(0.68 0.18 280)' }}>
+                                        <FlowArrow weight="fill" size={20} style={{ color: 'oklch(0.98 0 0)' }} />
                                       </div>
                                       <div className="flex-1">
                                         <div className="font-medium text-sm">Path Reference</div>
