@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Button } from './ui/button'
 import { Switch } from './ui/switch'
 import { Label } from './ui/label'
-import { Plus, Minus, ArrowsOut, Image as ImageIcon, FileCode, Download } from '@phosphor-icons/react'
+import { Plus, Minus, ArrowsOut, Image as ImageIcon, FileCode, Download, Copy } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import {
   DropdownMenu,
@@ -635,6 +635,72 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
     })
   }
 
+  const handleCopyToClipboard = async () => {
+    const canvas = canvasRef.current
+    if (!canvas || !selectedPath) return
+
+    try {
+      const exportCanvas = document.createElement('canvas')
+      const exportCtx = exportCanvas.getContext('2d')
+      if (!exportCtx) return
+
+      const nodes = getAllNodes(selectedPath, paths)
+      
+      let minX = Infinity, minY = Infinity
+      let maxX = -Infinity, maxY = -Infinity
+      
+      nodes.forEach(node => {
+        minX = Math.min(minX, node.x - node.width / 2)
+        maxX = Math.max(maxX, node.x + node.width / 2)
+        minY = Math.min(minY, node.y - node.height / 2)
+        maxY = Math.max(maxY, node.y + node.height / 2)
+      })
+
+      const padding = 50
+      const width = maxX - minX + padding * 2
+      const height = maxY - minY + padding * 2
+
+      exportCanvas.width = width
+      exportCanvas.height = height
+
+      exportCtx.fillStyle = 'oklch(0.98 0.005 250)'
+      exportCtx.fillRect(0, 0, width, height)
+
+      const offsetX = -minX + padding
+      const offsetY = -minY + padding
+
+      const connections = getAllConnections(selectedPath, paths)
+
+      connections.forEach(conn => {
+        drawConnection(exportCtx, conn, offsetX, offsetY)
+      })
+
+      nodes.forEach(node => {
+        drawNode(exportCtx, node, offsetX, offsetY)
+      })
+
+      exportCanvas.toBlob(async (blob) => {
+        if (!blob) {
+          toast.error('Failed to generate image')
+          return
+        }
+        
+        try {
+          await navigator.clipboard.write([
+            new ClipboardItem({
+              'image/png': blob
+            })
+          ])
+          toast.success('Flowchart copied to clipboard')
+        } catch (err) {
+          toast.error('Failed to copy to clipboard')
+        }
+      })
+    } catch (error) {
+      toast.error('Failed to copy flowchart')
+    }
+  }
+
   const handleExportSVG = () => {
     if (!selectedPath) return
 
@@ -808,6 +874,10 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={handleCopyToClipboard}>
+              <Copy className="mr-2" />
+              Copy to Clipboard
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={handleExportPNG}>
               <ImageIcon className="mr-2" />
               Export as PNG
