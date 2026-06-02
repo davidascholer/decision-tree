@@ -314,18 +314,14 @@ function ConditionNodeEditor({
     return false
   }
 
-  const handleDelete = () => {
+  const handleDeleteChild = () => {
     if (condition.next && hasChildren(condition.next)) {
       toast.error('Cannot delete node with children. Delete all child nodes first.')
       return
     }
-    if (condition.next) {
-      toast.error('Cannot delete node with children. Delete the child node first.')
-      return
-    }
-    if (onDeleteNode) {
-      onDeleteNode()
-    }
+    
+    onUpdateCondition({ ...condition, next: undefined })
+    toast.success('Node deleted')
   }
 
   const handleAddChild = (_: string, newNode: TreeNode) => {
@@ -406,7 +402,7 @@ function ConditionNodeEditor({
               <Button
                 size="sm"
                 variant="ghost"
-                onClick={handleDelete}
+                onClick={handleDeleteChild}
                 className="h-8 w-8 p-0"
                 title={hasChildren(next) ? "Cannot delete - has children" : "Delete node"}
                 disabled={hasChildren(next)}
@@ -523,7 +519,7 @@ function ConditionNodeEditor({
             <Button
               size="sm"
               variant="ghost"
-              onClick={handleDelete}
+              onClick={handleDeleteChild}
               className="h-8 w-8 p-0"
               title="Delete node"
             >
