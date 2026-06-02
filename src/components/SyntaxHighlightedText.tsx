@@ -1,12 +1,12 @@
 import { TreeNode, DecisionPath } from '../lib/types'
 
 interface SyntaxHighlightedTextProps {
-  node: TreeNode
+  node: TreeNode | DecisionPath
   paths: DecisionPath[]
 }
 
 function renderNode(
-  node: TreeNode,
+  node: TreeNode | DecisionPath,
   paths: DecisionPath[],
   indent: number = 0,
   prefix: string = '',
@@ -24,43 +24,32 @@ function renderNode(
       </div>
     )
     
-    node.branches.forEach((branch, index) => {
-      const isLast = index === node.branches.length - 1
-      const branchPrefix = isLast ? '└─ ' : '├─ '
-      const childPrefix = isLast ? '   ' : '│  '
-      
-      elements.push(
-        <div key={`${branch.id}-${keyCounter++}`} className="leading-relaxed">
-          <span className="text-muted-foreground">{indentStr}{branchPrefix}</span>
-          <span className="text-accent font-medium">[{branch.label}]</span>
-        </div>
-      )
-      
+    if (node.condition) {
       elements.push(
         ...renderNode(
-          branch.node,
+          node.condition,
           paths,
-          indent + 1,
-          childPrefix,
+          indent,
+          prefix,
           visitedPaths
         )
       )
-    })
+    }
   } else if (node.type === 'condition') {
     elements.push(
       <div key={`${node.id}-${keyCounter++}`} className="leading-relaxed">
-        <span className="text-muted-foreground">{indentStr}{prefix}</span>
+        <span className="text-muted-foreground">{indentStr}{prefix}└─ </span>
         <span className="text-accent font-medium">[{node.label}]</span>
       </div>
     )
     
-    if (node.node) {
+    if (node.next) {
       elements.push(
         ...renderNode(
-          node.node,
+          node.next,
           paths,
-          indent,
-          prefix,
+          indent + 1,
+          '   ',
           visitedPaths
         )
       )
@@ -95,7 +84,7 @@ function renderNode(
         visitedPaths.add(node.pathId)
         elements.push(
           ...renderNode(
-            referencedPath.node,
+            referencedPath,
             paths,
             indent + 1,
             '  ',

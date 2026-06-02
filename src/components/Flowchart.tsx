@@ -127,7 +127,7 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
       return pathSet
     }
 
-    function buildHierarchy(node: TreeNode): HierarchyNode {
+    function buildHierarchy(node: TreeNode | DecisionPath): HierarchyNode {
       const hierarchyNode: HierarchyNode = {
         id: node.id,
         type: node.type,
@@ -138,15 +138,15 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
 
       if (node.type === 'decision') {
         hierarchyNode.label = node.question
-        hierarchyNode.children = node.branches.map(branch => {
-          const child = buildHierarchy(branch.node)
-          child.branchLabel = branch.label
-          return child
-        })
+        if (node.condition) {
+          const child = buildHierarchy(node.condition)
+          child.branchLabel = node.condition.label
+          hierarchyNode.children = [child]
+        }
       } else if (node.type === 'condition') {
         hierarchyNode.label = node.label
-        if (node.node) {
-          const child = buildHierarchy(node.node)
+        if (node.next) {
+          const child = buildHierarchy(node.next)
           hierarchyNode.children = [child]
         }
       } else if (node.type === 'outcome') {
@@ -163,7 +163,7 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
       id: 'start',
       type: 'start',
       label: selectedPath.name,
-      children: [buildHierarchy(selectedPath.node)]
+      children: [buildHierarchy(selectedPath)]
     }
 
     const svg = d3.select(svgRef.current)

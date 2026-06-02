@@ -28,16 +28,8 @@ export interface ConditionNode {
 
 export type TreeNode = DecisionNode | OutcomeNode | PathReferenceNode | ConditionNode
 
-export interface DecisionPath {
-  id: string
+export type DecisionPath = (DecisionNode | OutcomeNode | PathReferenceNode) & {
   name: string
-  type: NodeType
-  question?: string
-  condition?: ConditionNode
-  description?: string
-  pathId?: string
-  label?: string
-  next?: TreeNode
 }
 
 export interface DecisionTreeData {

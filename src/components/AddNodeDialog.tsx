@@ -73,15 +73,15 @@ export function AddNodeDialog({
         id: initialNode?.id || generateId(),
         type: 'decision',
         question: question.trim(),
-        branches: initialNode?.type === 'decision' ? initialNode.branches : []
+        condition: initialNode?.type === 'decision' ? initialNode.condition : undefined
       }
     } else if (nodeType === 'condition') {
-      const childNode = initialNode?.type === 'condition' ? initialNode.node : null
+      const childNode = initialNode?.type === 'condition' ? initialNode.next : undefined
       node = {
         id: initialNode?.id || generateId(),
         type: 'condition',
         label: conditionLabel.trim(),
-        node: childNode
+        next: childNode
       }
     } else if (nodeType === 'outcome') {
       node = {

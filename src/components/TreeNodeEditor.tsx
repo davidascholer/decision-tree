@@ -1,5 +1,4 @@
 import { TreeNode, DecisionPath } from '@/lib/types'
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Plus, Trash, Pencil, DiamondsFour, CheckCircle, FlowArrow } from '@phosphor-icons/react'
@@ -10,71 +9,206 @@ import { useNodeColors } from '@/hooks/use-node-colors'
 import { toast } from 'sonner'
 
 interface TreeNodeEditorProps {
-  node: TreeNode
+  path: DecisionPath
   paths: DecisionPath[]
   currentPathId: string
-  onUpdateNode: (node: TreeNode) => void
-  onDeleteBranch?: (branchId: string) => void
+  onUpdatePath: (path: DecisionPath) => void
   depth?: number
 }
 
 export function TreeNodeEditor({ 
-  node, 
+  path, 
   paths, 
   currentPathId,
-  onUpdateNode, 
-  onDeleteBranch,
+  onUpdatePath, 
   depth = 0 
 }: TreeNodeEditorProps) {
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
-  const [addConditionChildOpen, setAddConditionChildOpen] = useState(false)
   const colors = useNodeColors()
 
-  const handleAddBranch = (branchLabel: string, branchNode: TreeNode) => {
-    if (node.type === 'decision') {
-      if (node.branches.length >= 1) {
+  const handleAddCondition = (_: string, conditionNode: TreeNode) => {
+    if (path.type === 'decision') {
+      if (path.condition) {
         toast.error('A decision can only have one output')
         return
       }
-      onUpdateNode({
-        ...node,
-        branches: [
-          ...node.branches,
-          {
-            id: generateId(),
-            label: branchLabel,
-            node: branchNode
-          }
-        ]
+      onUpdatePath({
+        ...path,
+        condition: conditionNode as any
       })
     }
   }
 
-  const handleUpdateBranch = (branchId: string, updatedNode: TreeNode) => {
-    if (node.type === 'decision') {
-      onUpdateNode({
-        ...node,
-        branches: node.branches.map(branch =>
-          branch.id === branchId
-            ? { ...branch, node: updatedNode }
-            : branch
-        )
+  const handleUpdatePath = (updates: Partial<DecisionPath>) => {
+    onUpdatePath({ ...path, ...updates } as DecisionPath)
+  }
+
+  const handleDeleteCondition = () => {
+    if (path.type === 'decision') {
+      onUpdatePath({
+        ...path,
+        condition: undefined
       })
     }
   }
 
-  const handleDeleteBranch = (branchId: string) => {
-    if (node.type === 'decision') {
-      onUpdateNode({
-        ...node,
-        branches: node.branches.filter(b => b.id !== branchId)
-      })
+  const getNodeIcon = (type: TreeNode['type'] | 'decision') => {
+    switch (type) {
+      case 'decision':
+        return <DiamondsFour weight="fill" className="text-decision-foreground" />
+      case 'condition':
+        return <CheckCircle weight="fill" className="text-accent-foreground" />
+      case 'outcome':
+        return <CheckCircle weight="fill" className="text-outcome-foreground" />
+      case 'path-reference':
+        return <FlowArrow weight="fill" className="text-path-ref-foreground" />
     }
+  }
+
+  const getNodeColor = (type: TreeNode['type'] | 'decision') => {
+    switch (type) {
+      case 'decision':
+        return { bg: colors.decision, fg: colors.decisionForeground }
+      case 'condition':
+        return { bg: colors.accent, fg: colors.accentForeground }
+      case 'outcome':
+        return { bg: colors.outcome, fg: colors.outcomeForeground }
+      case 'path-reference':
+        return { bg: colors.pathRef, fg: colors.pathRefForeground }
+    }
+  }
+
+  const getNodeLabel = (n: TreeNode | DecisionPath) => {
+    if (n.type === 'decision') return n.question
+    if (n.type === 'condition') return n.label
+    if (n.type === 'outcome') return n.description
+    if (n.type === 'path-reference') {
+      const p = paths.find(p => p.id === n.pathId)
+      return `→ ${p?.name || 'Unknown'}`
+    }
+  }
+
+  if (path.type === 'decision') {
+    const nodeColors = getNodeColor(path.type)
+    return (
+      <div className="space-y-2">
+        <div 
+          className="flex items-center gap-3 p-3 rounded-lg border-2" 
+          style={{ backgroundColor: nodeColors.bg, color: nodeColors.fg, borderColor: nodeColors.fg }}
+        >
+          {getNodeIcon(path.type)}
+          <div className="flex-1">
+            <div className="font-medium">{path.question}</div>
+            <div className="text-xs opacity-80 font-mono mt-1">ID: {path.id}</div>
+          </div>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setEditDialogOpen(true)}
+            className="h-8 w-8 p-0"
+          >
+            <Pencil />
+          </Button>
+        </div>
+
+        {path.condition && (
+          <div className="ml-6 border-l-2 border-border pl-4">
+            <div className="flex items-center justify-between mb-2">
+              <Badge variant="outline" className="font-mono">
+                {path.condition.label}
+              </Badge>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={handleDeleteCondition}
+                className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+              >
+                <Trash />
+              </Button>
+            </div>
+            {path.condition.type === 'condition' && (
+              <ConditionNodeEditor
+                condition={path.condition}
+                paths={paths}
+                currentPathId={currentPathId}
+                onUpdateCondition={(updated) => 
+                  onUpdatePath({
+                    ...path,
+                    condition: updated
+                  })
+                }
+                depth={depth + 1}
+              />
+            )}
+          </div>
+        )}
+
+        {!path.condition && (
+          <div className="ml-6 pl-4">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setAddDialogOpen(true)}
+              className="w-full"
+            >
+              <Plus />
+              Add Output
+            </Button>
+          </div>
+        )}
+
+        <AddNodeDialog
+          open={addDialogOpen}
+          onOpenChange={setAddDialogOpen}
+          onAdd={handleAddCondition}
+          paths={paths}
+          currentPathId={currentPathId}
+          mode="output"
+          parentNodeType="decision"
+        />
+
+        <AddNodeDialog
+          open={editDialogOpen}
+          onOpenChange={setEditDialogOpen}
+          onAdd={(_, newNode) => handleUpdatePath(newNode as any)}
+          paths={paths}
+          currentPathId={currentPathId}
+          mode="edit"
+          initialNode={path as any}
+        />
+      </div>
+    )
+  }
+
+  return null
+}
+
+interface ConditionNodeEditorProps {
+  condition: Extract<TreeNode, { type: 'condition' }>
+  paths: DecisionPath[]
+  currentPathId: string
+  onUpdateCondition: (condition: Extract<TreeNode, { type: 'condition' }>) => void
+  depth: number
+}
+
+function ConditionNodeEditor({ 
+  condition, 
+  paths, 
+  currentPathId,
+  onUpdateCondition,
+  depth
+}: ConditionNodeEditorProps) {
+  const [addChildOpen, setAddChildOpen] = useState(false)
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const colors = useNodeColors()
+
+  const handleAddChild = (_: string, newNode: TreeNode) => {
+    onUpdateCondition({ ...condition, next: newNode })
   }
 
   const handleUpdateNode = (updates: Partial<TreeNode>) => {
-    onUpdateNode({ ...node, ...updates } as TreeNode)
+    onUpdateCondition({ ...condition, ...updates } as any)
   }
 
   const getNodeIcon = (type: TreeNode['type']) => {
@@ -113,155 +247,114 @@ export function TreeNodeEditor({
     }
   }
 
-  if (node.type === 'decision') {
-    const nodeColors = getNodeColor(node.type)
-    return (
-      <div className="space-y-2">
-        <div 
-          className="flex items-center gap-3 p-3 rounded-lg border-2" 
-          style={{ backgroundColor: nodeColors.bg, color: nodeColors.fg, borderColor: nodeColors.fg }}
-        >
-          {getNodeIcon(node.type)}
-          <div className="flex-1">
-            <div className="font-medium">{node.question}</div>
-            <div className="text-xs opacity-80 font-mono mt-1">ID: {node.id}</div>
-          </div>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => setEditDialogOpen(true)}
-            className="h-8 w-8 p-0"
+  if (condition.next) {
+    const next = condition.next
+
+    if (next.type === 'decision') {
+      return (
+        <div className="space-y-2">
+          <div 
+            className="flex items-center gap-3 p-3 rounded-lg border-2" 
+            style={{ backgroundColor: getNodeColor(next.type).bg, color: getNodeColor(next.type).fg, borderColor: getNodeColor(next.type).fg }}
           >
-            <Pencil />
-          </Button>
-        </div>
-
-        {node.branches.length > 0 && (
-          <Accordion type="multiple" className="ml-6 border-l-2 border-border pl-4">
-            {node.branches.map((branch) => (
-              <AccordionItem key={branch.id} value={branch.id} className="border-none">
-                <div className="flex items-center gap-2">
-                  <AccordionTrigger className="flex-1 py-2 hover:no-underline">
-                    <div className="flex items-center gap-2 text-sm font-medium">
-                      <Badge variant="outline" className="font-mono">
-                        {branch.label}
-                      </Badge>
-                      <span className="text-muted-foreground truncate">
-                        {getNodeLabel(branch.node)}
-                      </span>
-                    </div>
-                  </AccordionTrigger>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => handleDeleteBranch(branch.id)}
-                    className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                  >
-                    <Trash />
-                  </Button>
-                </div>
-                <AccordionContent className="pb-4 pt-2">
-                  <TreeNodeEditor
-                    node={branch.node}
-                    paths={paths}
-                    currentPathId={currentPathId}
-                    onUpdateNode={(updated) => handleUpdateBranch(branch.id, updated)}
-                    onDeleteBranch={() => handleDeleteBranch(branch.id)}
-                    depth={depth + 1}
-                  />
-                </AccordionContent>
-              </AccordionItem>
-            ))}
-          </Accordion>
-        )}
-
-        {node.branches.length === 0 && (
-          <div className="ml-6 pl-4">
+            {getNodeIcon(next.type)}
+            <div className="flex-1">
+              <div className="font-medium">{next.question}</div>
+              <div className="text-xs opacity-80 font-mono mt-1">ID: {next.id}</div>
+            </div>
             <Button
-              variant="outline"
               size="sm"
-              onClick={() => setAddDialogOpen(true)}
-              className="w-full"
+              variant="ghost"
+              onClick={() => setEditDialogOpen(true)}
+              className="h-8 w-8 p-0"
             >
-              <Plus />
-              Add Output
+              <Pencil />
             </Button>
           </div>
-        )}
 
-        <AddNodeDialog
-          open={addDialogOpen}
-          onOpenChange={setAddDialogOpen}
-          onAdd={handleAddBranch}
-          paths={paths}
-          currentPathId={currentPathId}
-          mode="output"
-          parentNodeType="decision"
-        />
+          {next.condition && (
+            <div className="ml-6 border-l-2 border-border pl-4">
+              <div className="mb-2">
+                <Badge variant="outline" className="font-mono">
+                  {next.condition.label}
+                </Badge>
+              </div>
+              <ConditionNodeEditor
+                condition={next.condition}
+                paths={paths}
+                currentPathId={currentPathId}
+                onUpdateCondition={(updated) => 
+                  onUpdateCondition({
+                    ...condition,
+                    next: {
+                      ...next,
+                      condition: updated
+                    }
+                  })
+                }
+                depth={depth + 1}
+              />
+            </div>
+          )}
 
-        <AddNodeDialog
-          open={editDialogOpen}
-          onOpenChange={setEditDialogOpen}
-          onAdd={(_, newNode) => handleUpdateNode(newNode)}
-          paths={paths}
-          currentPathId={currentPathId}
-          mode="edit"
-          initialNode={node}
-        />
-      </div>
-    )
-  }
+          {!next.condition && (
+            <div className="ml-6 pl-4">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setAddChildOpen(true)}
+                className="w-full"
+              >
+                <Plus />
+                Add Output
+              </Button>
+            </div>
+          )}
 
-  if (node.type === 'outcome') {
-    const nodeColors = getNodeColor(node.type)
-    return (
-      <div 
-        className="flex items-center gap-3 p-3 rounded-lg border-2" 
-        style={{ backgroundColor: nodeColors.bg, color: nodeColors.fg, borderColor: nodeColors.fg }}
-      >
-        {getNodeIcon(node.type)}
-        <div className="flex-1">
-          <div className="font-medium">{node.description}</div>
-          <div className="text-xs opacity-80 font-mono mt-1">ID: {node.id}</div>
+          <AddNodeDialog
+            open={addChildOpen}
+            onOpenChange={setAddChildOpen}
+            onAdd={(_, newCondition) =>
+              onUpdateCondition({
+                ...condition,
+                next: {
+                  ...next,
+                  condition: newCondition as any
+                }
+              })
+            }
+            paths={paths}
+            currentPathId={currentPathId}
+            mode="output"
+            parentNodeType="decision"
+          />
+
+          <AddNodeDialog
+            open={editDialogOpen}
+            onOpenChange={setEditDialogOpen}
+            onAdd={(_, updatedNode) =>
+              onUpdateCondition({ ...condition, next: updatedNode })
+            }
+            paths={paths}
+            currentPathId={currentPathId}
+            mode="edit"
+            initialNode={next}
+          />
         </div>
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={() => setEditDialogOpen(true)}
-          className="h-8 w-8 p-0"
-        >
-          <Pencil />
-        </Button>
-        <AddNodeDialog
-          open={editDialogOpen}
-          onOpenChange={setEditDialogOpen}
-          onAdd={(_, newNode: TreeNode) => handleUpdateNode(newNode)}
-          paths={paths}
-          currentPathId={currentPathId}
-          mode="edit"
-          initialNode={node}
-        />
-      </div>
-    )
-  }
-
-  if (node.type === 'condition') {
-    const nodeColors = getNodeColor(node.type)
-
-    const handleAddConditionChild = (_: string, newNode: TreeNode) => {
-      onUpdateNode({ ...node, node: newNode })
+      )
     }
 
+    const nodeColors = getNodeColor(next.type)
     return (
-      <div className="space-y-2">
+      <div>
         <div 
           className="flex items-center gap-3 p-3 rounded-lg border-2" 
           style={{ backgroundColor: nodeColors.bg, color: nodeColors.fg, borderColor: nodeColors.fg }}
         >
-          {getNodeIcon(node.type)}
+          {getNodeIcon(next.type)}
           <div className="flex-1">
-            <div className="font-medium">{node.label}</div>
-            <div className="text-xs opacity-80 font-mono mt-1">ID: {node.id}</div>
+            <div className="font-medium">{getNodeLabel(next)}</div>
+            <div className="text-xs opacity-80 font-mono mt-1">ID: {next.id}</div>
           </div>
           <Button
             size="sm"
@@ -273,86 +366,44 @@ export function TreeNodeEditor({
           </Button>
         </div>
 
-        {node.node ? (
-          <div className="ml-6 pl-4 border-l-2 border-border">
-            <TreeNodeEditor
-              node={node.node}
-              paths={paths}
-              currentPathId={currentPathId}
-              onUpdateNode={(updated) => onUpdateNode({ ...node, node: updated })}
-              depth={depth + 1}
-            />
-          </div>
-        ) : (
-          <div className="ml-6 pl-4">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setAddConditionChildOpen(true)}
-              className="w-full"
-            >
-              <Plus />
-              Add Content
-            </Button>
-          </div>
-        )}
-
         <AddNodeDialog
           open={editDialogOpen}
           onOpenChange={setEditDialogOpen}
-          onAdd={(_, newNode: TreeNode) => handleUpdateNode(newNode)}
+          onAdd={(_, updatedNode) =>
+            onUpdateCondition({ ...condition, next: updatedNode })
+          }
           paths={paths}
           currentPathId={currentPathId}
           mode="edit"
-          initialNode={node}
-        />
-
-        <AddNodeDialog
-          open={addConditionChildOpen}
-          onOpenChange={setAddConditionChildOpen}
-          onAdd={handleAddConditionChild}
-          paths={paths}
-          currentPathId={currentPathId}
-          mode="output"
-          parentNodeType="condition"
+          initialNode={next}
         />
       </div>
     )
   }
 
-  if (node.type === 'path-reference') {
-    const referencedPath = paths.find(p => p.id === node.pathId)
-    const nodeColors = getNodeColor(node.type)
-    return (
-      <div 
-        className="flex items-center gap-3 p-3 rounded-lg border-2" 
-        style={{ backgroundColor: nodeColors.bg, color: nodeColors.fg, borderColor: nodeColors.fg }}
-      >
-        {getNodeIcon(node.type)}
-        <div className="flex-1">
-          <div className="font-medium">References: {referencedPath?.name || 'Unknown Path'}</div>
-          <div className="text-xs opacity-80 font-mono mt-1">Path ID: {node.pathId}</div>
-        </div>
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={() => setEditDialogOpen(true)}
-          className="h-8 w-8 p-0"
-        >
-          <Pencil />
-        </Button>
-        <AddNodeDialog
-          open={editDialogOpen}
-          onOpenChange={setEditDialogOpen}
-          onAdd={(_, newNode: TreeNode) => handleUpdateNode(newNode)}
-          paths={paths}
-          currentPathId={currentPathId}
-          mode="edit"
-          initialNode={node}
-        />
-      </div>
-    )
-  }
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={() => setAddChildOpen(true)}
+      className="w-full"
+    >
+      <Plus />
+      Add Content
+    </Button>
+  )
 
-  return null
+  return (
+    <>
+      <AddNodeDialog
+        open={addChildOpen}
+        onOpenChange={setAddChildOpen}
+        onAdd={handleAddChild}
+        paths={paths}
+        currentPathId={currentPathId}
+        mode="output"
+        parentNodeType="condition"
+      />
+    </>
+  )
 }

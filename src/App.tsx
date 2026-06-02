@@ -29,7 +29,7 @@ function App() {
       id: generateId(),
       name: newPathName.trim(),
       type: 'decision',
-      question: 'Start'
+      question: 'Start',
     }
 
     setPaths((current) => [...(current || []), newPath])
@@ -295,11 +295,11 @@ function App() {
                       </CardHeader>
                       <CardContent>
                         <TreeNodeEditor
-                          node={selectedPath.node}
+                          path={selectedPath}
                           paths={currentPaths}
                           currentPathId={selectedPath.id}
-                          onUpdateNode={(updatedNode) =>
-                            handleUpdatePath(selectedPath.id, updatedNode)
+                          onUpdatePath={(updatedPath) =>
+                            handleUpdatePath(selectedPath.id, updatedPath)
                           }
                         />
                       </CardContent>
@@ -328,7 +328,7 @@ function App() {
                       <CardContent>
                         <div className="relative">
                           <div className="bg-muted p-4 rounded-lg overflow-auto max-h-[500px]">
-                            <SyntaxHighlightedText node={selectedPath.node} paths={currentPaths} />
+                            <SyntaxHighlightedText node={selectedPath} paths={currentPaths} />
                           </div>
                         </div>
                       </CardContent>
