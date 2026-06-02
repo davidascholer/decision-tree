@@ -5,7 +5,7 @@ import { Button } from './components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs'
 import { Input } from './components/ui/input'
-import { Plus, Trash, List, Tree, Download, Upload, Palette } from '@phosphor-icons/react'
+import { Plus, Trash, List, Tree, Download, Upload, Palette, Code, Copy } from '@phosphor-icons/react'
 import { useState, useRef } from 'react'
 import { TreeNodeEditor } from './components/TreeNodeEditor'
 import { Flowchart } from './components/Flowchart'
@@ -106,6 +106,14 @@ function App() {
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
     }
+  }
+
+  const handleCopyJSON = () => {
+    if (!selectedPath) return
+    
+    const jsonString = JSON.stringify(selectedPath, null, 2)
+    navigator.clipboard.writeText(jsonString)
+    toast.success('JSON copied to clipboard')
   }
 
   const selectedPath = selectedPathId ? currentPaths.find(p => p.id === selectedPathId) : undefined
@@ -242,7 +250,7 @@ function App() {
             <div className="lg:col-span-3">
               {selectedPath ? (
                 <Tabs defaultValue="editor" className="w-full">
-                  <TabsList className="grid w-full grid-cols-3 mb-6">
+                  <TabsList className="grid w-full grid-cols-4 mb-6">
                     <TabsTrigger value="editor" className="flex items-center gap-2">
                       <List />
                       <span>Editor</span>
@@ -250,6 +258,10 @@ function App() {
                     <TabsTrigger value="flowchart" className="flex items-center gap-2">
                       <Tree />
                       <span>Flowchart</span>
+                    </TabsTrigger>
+                    <TabsTrigger value="json" className="flex items-center gap-2">
+                      <Code />
+                      <span>JSON</span>
                     </TabsTrigger>
                     <TabsTrigger value="settings" className="flex items-center gap-2">
                       <Palette />
@@ -279,6 +291,27 @@ function App() {
                     <Card className="h-[600px]">
                       <CardContent className="p-0 h-full">
                         <Flowchart paths={currentPaths} selectedPathId={selectedPathId} />
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+
+                  <TabsContent value="json">
+                    <Card>
+                      <CardHeader>
+                        <div className="flex items-center justify-between">
+                          <CardTitle>Path JSON</CardTitle>
+                          <Button onClick={handleCopyJSON} variant="outline" size="sm">
+                            <Copy />
+                            Copy to Clipboard
+                          </Button>
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="relative">
+                          <pre className="bg-muted p-4 rounded-lg overflow-auto max-h-[500px] text-sm font-mono">
+                            <code>{JSON.stringify(selectedPath, null, 2)}</code>
+                          </pre>
+                        </div>
                       </CardContent>
                     </Card>
                   </TabsContent>
