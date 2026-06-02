@@ -181,15 +181,26 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
         strokeColor = 'oklch(0.25 0.05 290)'
       }
       
-      g.append('rect')
-        .attr('width', shapeWidth)
-        .attr('height', shapeHeight)
-        .attr('x', -shapeWidth / 2)
-        .attr('y', -shapeHeight / 2)
-        .attr('fill', fillColor)
-        .attr('stroke', strokeColor)
-        .attr('stroke-width', 2)
-        .attr('rx', borderRadius)
+      if (nodeData.type === 'start') {
+        const radius = 50
+        g.append('circle')
+          .attr('r', radius)
+          .attr('cx', 0)
+          .attr('cy', 0)
+          .attr('fill', fillColor)
+          .attr('stroke', strokeColor)
+          .attr('stroke-width', 2)
+      } else {
+        g.append('rect')
+          .attr('width', shapeWidth)
+          .attr('height', shapeHeight)
+          .attr('x', -shapeWidth / 2)
+          .attr('y', -shapeHeight / 2)
+          .attr('fill', fillColor)
+          .attr('stroke', strokeColor)
+          .attr('stroke-width', 2)
+          .attr('rx', borderRadius)
+      }
 
       const maxChars = 18
       const wrappedLines = wrapText(nodeData.label, maxChars)
