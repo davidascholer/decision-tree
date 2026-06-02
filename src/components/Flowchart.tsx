@@ -590,19 +590,15 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
     if (nodes.length === 0) return
 
     const rect = container.getBoundingClientRect()
-    const centerOffsetX = rect.width / 2
-    const centerOffsetY = 50
 
     let minX = Infinity, minY = Infinity
     let maxX = -Infinity, maxY = -Infinity
 
     nodes.forEach(node => {
-      const nodeX = node.x + centerOffsetX
-      const nodeY = node.y + centerOffsetY
-      minX = Math.min(minX, nodeX - node.width / 2)
-      maxX = Math.max(maxX, nodeX + node.width / 2)
-      minY = Math.min(minY, nodeY - node.height / 2)
-      maxY = Math.max(maxY, nodeY + node.height / 2)
+      minX = Math.min(minX, node.x - node.width / 2)
+      maxX = Math.max(maxX, node.x + node.width / 2)
+      minY = Math.min(minY, node.y - node.height / 2)
+      maxY = Math.max(maxY, node.y + node.height / 2)
     })
 
     const contentWidth = maxX - minX
@@ -616,8 +612,11 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
     const contentCenterX = (minX + maxX) / 2
     const contentCenterY = (minY + maxY) / 2
     
-    const newPanX = rect.width / 2 - contentCenterX * targetZoom
-    const newPanY = rect.height / 2 - contentCenterY * targetZoom
+    const viewCenterX = rect.width / (2 * targetZoom)
+    const viewCenterY = rect.height / (2 * targetZoom)
+    
+    const newPanX = (viewCenterX - contentCenterX) * targetZoom
+    const newPanY = (viewCenterY - contentCenterY) * targetZoom
 
     setIsAnimating(true)
     
