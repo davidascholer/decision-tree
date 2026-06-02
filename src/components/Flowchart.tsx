@@ -156,48 +156,42 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
       const g = d3.select(this)
       const nodeData = d.data
       
-      const shapeWidth = nodeData.type === 'decision' ? 140 : 160
-      const shapeHeight = nodeData.type === 'decision' ? 90 : 70
+      const shapeWidth = 160
+      const shapeHeight = 70
+      
+      let borderRadius = 0
+      let fillColor = ''
+      let strokeColor = ''
       
       if (nodeData.type === 'start') {
-        g.append('rect')
-          .attr('width', shapeWidth)
-          .attr('height', shapeHeight)
-          .attr('x', -shapeWidth / 2)
-          .attr('y', -shapeHeight / 2)
-          .attr('fill', 'oklch(0.45 0.15 250)')
-          .attr('rx', 10)
+        borderRadius = 8
+        fillColor = 'oklch(0.45 0.15 250)'
+        strokeColor = 'oklch(0.45 0.15 250)'
       } else if (nodeData.type === 'decision') {
-        const halfW = shapeWidth / 2
-        const halfH = shapeHeight / 2
-        g.append('path')
-          .attr('d', `M 0,${-halfH} L ${halfW},0 L 0,${halfH} L ${-halfW},0 Z`)
-          .attr('fill', 'oklch(0.70 0.15 70)')
-          .attr('stroke', 'oklch(0.25 0.05 70)')
-          .attr('stroke-width', 2)
+        borderRadius = 4
+        fillColor = 'oklch(0.70 0.15 70)'
+        strokeColor = 'oklch(0.25 0.05 70)'
       } else if (nodeData.type === 'outcome') {
-        g.append('rect')
-          .attr('width', shapeWidth)
-          .attr('height', shapeHeight)
-          .attr('x', -shapeWidth / 2)
-          .attr('y', -shapeHeight / 2)
-          .attr('fill', 'oklch(0.65 0.15 145)')
-          .attr('stroke', 'oklch(0.25 0.08 145)')
-          .attr('stroke-width', 2)
-          .attr('rx', 35)
+        borderRadius = 35
+        fillColor = 'oklch(0.65 0.15 145)'
+        strokeColor = 'oklch(0.25 0.08 145)'
       } else if (nodeData.type === 'path-reference') {
-        g.append('rect')
-          .attr('width', shapeWidth)
-          .attr('height', shapeHeight)
-          .attr('x', -shapeWidth / 2)
-          .attr('y', -shapeHeight / 2)
-          .attr('fill', 'oklch(0.60 0.15 290)')
-          .attr('stroke', 'oklch(0.25 0.05 290)')
-          .attr('stroke-width', 2)
-          .attr('rx', 10)
+        borderRadius = 16
+        fillColor = 'oklch(0.60 0.15 290)'
+        strokeColor = 'oklch(0.25 0.05 290)'
       }
+      
+      g.append('rect')
+        .attr('width', shapeWidth)
+        .attr('height', shapeHeight)
+        .attr('x', -shapeWidth / 2)
+        .attr('y', -shapeHeight / 2)
+        .attr('fill', fillColor)
+        .attr('stroke', strokeColor)
+        .attr('stroke-width', 2)
+        .attr('rx', borderRadius)
 
-      const maxChars = nodeData.type === 'decision' ? 14 : 18
+      const maxChars = 18
       const wrappedLines = wrapText(nodeData.label, maxChars)
       
       const textGroup = g.append('text')
