@@ -1,6 +1,7 @@
 import { DecisionPath, TreeNode } from '@/lib/types'
 import * as d3 from 'd3'
 import { useEffect, useRef } from 'react'
+import { useNodeColors } from '@/hooks/use-node-colors'
 
 interface FlowchartProps {
   paths: DecisionPath[]
@@ -18,6 +19,7 @@ interface HierarchyNode {
 
 export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
   const svgRef = useRef<SVGSVGElement>(null)
+  const colors = useNodeColors()
 
   useEffect(() => {
     if (!svgRef.current) return
@@ -169,16 +171,16 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
         strokeColor = 'oklch(0.45 0.15 250)'
       } else if (nodeData.type === 'decision') {
         borderRadius = 4
-        fillColor = 'oklch(0.70 0.15 70)'
-        strokeColor = 'oklch(0.25 0.05 70)'
+        fillColor = colors.decision
+        strokeColor = colors.decisionForeground
       } else if (nodeData.type === 'outcome') {
         borderRadius = 35
-        fillColor = 'oklch(0.65 0.15 145)'
-        strokeColor = 'oklch(0.25 0.08 145)'
+        fillColor = colors.outcome
+        strokeColor = colors.outcomeForeground
       } else if (nodeData.type === 'path-reference') {
         borderRadius = 16
-        fillColor = 'oklch(0.60 0.15 290)'
-        strokeColor = 'oklch(0.25 0.05 290)'
+        fillColor = colors.pathRef
+        strokeColor = colors.pathRefForeground
       }
       
       if (nodeData.type === 'start') {
@@ -246,7 +248,7 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
       return lines.slice(0, 4)
     }
 
-  }, [paths, selectedPathId])
+  }, [paths, selectedPathId, colors])
 
   return (
     <div className="w-full h-full overflow-auto bg-muted/20 rounded-lg border">

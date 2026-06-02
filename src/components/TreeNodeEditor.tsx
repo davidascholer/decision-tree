@@ -6,6 +6,7 @@ import { Plus, Trash, Pencil, DiamondsFour, CheckCircle, FlowArrow } from '@phos
 import { useState } from 'react'
 import { AddNodeDialog } from './AddNodeDialog'
 import { generateId } from '@/lib/tree-utils'
+import { useNodeColors } from '@/hooks/use-node-colors'
 
 interface TreeNodeEditorProps {
   node: TreeNode
@@ -26,6 +27,7 @@ export function TreeNodeEditor({
 }: TreeNodeEditorProps) {
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const colors = useNodeColors()
 
   const handleAddBranch = (branchLabel: string, branchNode: TreeNode) => {
     if (node.type === 'decision') {
@@ -83,11 +85,11 @@ export function TreeNodeEditor({
   const getNodeColor = (type: TreeNode['type']) => {
     switch (type) {
       case 'decision':
-        return 'bg-decision text-decision-foreground'
+        return { bg: colors.decision, fg: colors.decisionForeground }
       case 'outcome':
-        return 'bg-outcome text-outcome-foreground'
+        return { bg: colors.outcome, fg: colors.outcomeForeground }
       case 'path-reference':
-        return 'bg-path-ref text-path-ref-foreground'
+        return { bg: colors.pathRef, fg: colors.pathRefForeground }
     }
   }
 
@@ -101,9 +103,13 @@ export function TreeNodeEditor({
   }
 
   if (node.type === 'decision') {
+    const nodeColors = getNodeColor(node.type)
     return (
       <div className="space-y-2">
-        <div className={`flex items-center gap-3 p-3 rounded-lg border-2 ${getNodeColor(node.type)}`}>
+        <div 
+          className="flex items-center gap-3 p-3 rounded-lg border-2" 
+          style={{ backgroundColor: nodeColors.bg, color: nodeColors.fg, borderColor: nodeColors.fg }}
+        >
           {getNodeIcon(node.type)}
           <div className="flex-1">
             <div className="font-medium">{node.question}</div>
@@ -193,8 +199,12 @@ export function TreeNodeEditor({
   }
 
   if (node.type === 'outcome') {
+    const nodeColors = getNodeColor(node.type)
     return (
-      <div className={`flex items-center gap-3 p-3 rounded-lg border-2 ${getNodeColor(node.type)}`}>
+      <div 
+        className="flex items-center gap-3 p-3 rounded-lg border-2" 
+        style={{ backgroundColor: nodeColors.bg, color: nodeColors.fg, borderColor: nodeColors.fg }}
+      >
         {getNodeIcon(node.type)}
         <div className="flex-1">
           <div className="font-medium">{node.description}</div>
@@ -223,8 +233,12 @@ export function TreeNodeEditor({
 
   if (node.type === 'path-reference') {
     const referencedPath = paths.find(p => p.id === node.pathId)
+    const nodeColors = getNodeColor(node.type)
     return (
-      <div className={`flex items-center gap-3 p-3 rounded-lg border-2 ${getNodeColor(node.type)}`}>
+      <div 
+        className="flex items-center gap-3 p-3 rounded-lg border-2" 
+        style={{ backgroundColor: nodeColors.bg, color: nodeColors.fg, borderColor: nodeColors.fg }}
+      >
         {getNodeIcon(node.type)}
         <div className="flex-1">
           <div className="font-medium">References: {referencedPath?.name || 'Unknown Path'}</div>

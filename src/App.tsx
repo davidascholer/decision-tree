@@ -5,10 +5,11 @@ import { Button } from './components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs'
 import { Input } from './components/ui/input'
-import { Plus, Trash, List, Tree, Download, Upload } from '@phosphor-icons/react'
+import { Plus, Trash, List, Tree, Download, Upload, Palette } from '@phosphor-icons/react'
 import { useState, useRef } from 'react'
 import { TreeNodeEditor } from './components/TreeNodeEditor'
 import { Flowchart } from './components/Flowchart'
+import { ColorSettings } from './components/ColorSettings'
 import { toast } from 'sonner'
 import { Toaster } from './components/ui/sonner'
 
@@ -241,7 +242,7 @@ function App() {
             <div className="lg:col-span-3">
               {selectedPath ? (
                 <Tabs defaultValue="editor" className="w-full">
-                  <TabsList className="grid w-full grid-cols-2 mb-6">
+                  <TabsList className="grid w-full grid-cols-3 mb-6">
                     <TabsTrigger value="editor" className="flex items-center gap-2">
                       <List />
                       <span>Editor</span>
@@ -249,6 +250,10 @@ function App() {
                     <TabsTrigger value="flowchart" className="flex items-center gap-2">
                       <Tree />
                       <span>Flowchart</span>
+                    </TabsTrigger>
+                    <TabsTrigger value="settings" className="flex items-center gap-2">
+                      <Palette />
+                      <span>Settings</span>
                     </TabsTrigger>
                   </TabsList>
 
@@ -276,6 +281,10 @@ function App() {
                         <Flowchart paths={currentPaths} selectedPathId={selectedPathId} />
                       </CardContent>
                     </Card>
+                  </TabsContent>
+
+                  <TabsContent value="settings">
+                    <ColorSettings />
                   </TabsContent>
                 </Tabs>
               ) : (
