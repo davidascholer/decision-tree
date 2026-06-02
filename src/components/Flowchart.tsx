@@ -589,19 +589,24 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
     const nodes = getAllNodes(selectedPath, paths)
     if (nodes.length === 0) return
 
+    const rect = container.getBoundingClientRect()
+    const centerOffsetX = rect.width / 2
+    const centerOffsetY = 50
+
     let minX = Infinity, minY = Infinity
     let maxX = -Infinity, maxY = -Infinity
 
     nodes.forEach(node => {
-      minX = Math.min(minX, node.x - node.width / 2)
-      maxX = Math.max(maxX, node.x + node.width / 2)
-      minY = Math.min(minY, node.y - node.height / 2)
-      maxY = Math.max(maxY, node.y + node.height / 2)
+      const nodeX = node.x + centerOffsetX
+      const nodeY = node.y + centerOffsetY
+      minX = Math.min(minX, nodeX - node.width / 2)
+      maxX = Math.max(maxX, nodeX + node.width / 2)
+      minY = Math.min(minY, nodeY - node.height / 2)
+      maxY = Math.max(maxY, nodeY + node.height / 2)
     })
 
     const contentWidth = maxX - minX
     const contentHeight = maxY - minY
-    const rect = container.getBoundingClientRect()
     
     const padding = 80
     const scaleX = (rect.width - padding * 2) / contentWidth
