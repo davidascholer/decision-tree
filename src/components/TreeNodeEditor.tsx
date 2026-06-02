@@ -29,13 +29,10 @@ export function TreeNodeEditor({
 
   const handleAddCondition = (_: string, conditionNode: TreeNode) => {
     if (path.type === 'decision') {
-      if (path.condition) {
-        toast.error('A decision can only have one output')
-        return
-      }
+      const conditions = path.conditions || []
       onUpdatePath({
         ...path,
-        condition: conditionNode as any
+        conditions: [...conditions, conditionNode as any]
       })
     }
   }
@@ -44,11 +41,22 @@ export function TreeNodeEditor({
     onUpdatePath({ ...path, ...updates } as DecisionPath)
   }
 
-  const handleDeleteCondition = () => {
+  const handleDeleteCondition = (conditionId: string) => {
     if (path.type === 'decision') {
+      const conditions = path.conditions || []
       onUpdatePath({
         ...path,
-        condition: undefined
+        conditions: conditions.filter(c => c.id !== conditionId)
+      })
+    }
+  }
+
+  const handleUpdateCondition = (conditionId: string, updatedCondition: any) => {
+    if (path.type === 'decision') {
+      const conditions = path.conditions || []
+      onUpdatePath({
+        ...path,
+        conditions: conditions.map(c => c.id === conditionId ? updatedCondition : c)
       })
     }
   }
@@ -112,51 +120,50 @@ export function TreeNodeEditor({
           </Button>
         </div>
 
-        {path.condition && (
-          <div className="ml-6 border-l-2 border-border pl-4">
-            <div className="flex items-center justify-between mb-2">
-              <Badge variant="outline" className="font-mono">
-                {path.condition.label}
-              </Badge>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={handleDeleteCondition}
-                className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-              >
-                <Trash />
-              </Button>
-            </div>
-            {path.condition.type === 'condition' && (
-              <ConditionNodeEditor
-                condition={path.condition}
-                paths={paths}
-                currentPathId={currentPathId}
-                onUpdateCondition={(updated) => 
-                  onUpdatePath({
-                    ...path,
-                    condition: updated
-                  })
-                }
-                depth={depth + 1}
-              />
-            )}
+        {path.conditions && path.conditions.length > 0 && (
+          <div className="ml-6 space-y-3">
+            {path.conditions.map((condition) => (
+              <div key={condition.id} className="border-l-2 border-border pl-4">
+                <div className="flex items-center justify-between mb-2">
+                  <Badge variant="outline" className="font-mono">
+                    {condition.label}
+                  </Badge>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => handleDeleteCondition(condition.id)}
+                    className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                  >
+                    <Trash />
+                  </Button>
+                </div>
+                {condition.type === 'condition' && (
+                  <ConditionNodeEditor
+                    condition={condition}
+                    paths={paths}
+                    currentPathId={currentPathId}
+                    onUpdateCondition={(updated) => 
+                      handleUpdateCondition(condition.id, updated)
+                    }
+                    depth={depth + 1}
+                  />
+                )}
+              </div>
+            ))}
           </div>
         )}
 
-        {!path.condition && (
-          <div className="ml-6 pl-4">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setAddDialogOpen(true)}
-              className="w-full"
-            >
-              <Plus />
-              Add Output
-            </Button>
-          </div>
-        )}
+        <div className="ml-6 pl-4 mt-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setAddDialogOpen(true)}
+            className="w-full"
+          >
+            <Plus />
+            Add Output
+          </Button>
+        </div>
 
         <AddNodeDialog
           open={addDialogOpen}
@@ -272,57 +279,63 @@ function ConditionNodeEditor({
             </Button>
           </div>
 
-          {next.condition && (
-            <div className="ml-6 border-l-2 border-border pl-4">
-              <div className="mb-2">
-                <Badge variant="outline" className="font-mono">
-                  {next.condition.label}
-                </Badge>
-              </div>
-              <ConditionNodeEditor
-                condition={next.condition}
-                paths={paths}
-                currentPathId={currentPathId}
-                onUpdateCondition={(updated) => 
-                  onUpdateCondition({
-                    ...condition,
-                    next: {
-                      ...next,
-                      condition: updated
-                    }
-                  })
-                }
-                depth={depth + 1}
-              />
+          {next.conditions && next.conditions.length > 0 && (
+            <div className="ml-6 space-y-3">
+              {next.conditions.map((cond) => (
+                <div key={cond.id} className="border-l-2 border-border pl-4">
+                  <div className="mb-2">
+                    <Badge variant="outline" className="font-mono">
+                      {cond.label}
+                    </Badge>
+                  </div>
+                  <ConditionNodeEditor
+                    condition={cond}
+                    paths={paths}
+                    currentPathId={currentPathId}
+                    onUpdateCondition={(updated) => {
+                      const updatedConditions = (next.conditions || []).map(c =>
+                        c.id === cond.id ? updated : c
+                      )
+                      onUpdateCondition({
+                        ...condition,
+                        next: {
+                          ...next,
+                          conditions: updatedConditions
+                        }
+                      })
+                    }}
+                    depth={depth + 1}
+                  />
+                </div>
+              ))}
             </div>
           )}
 
-          {!next.condition && (
-            <div className="ml-6 pl-4">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setAddChildOpen(true)}
-                className="w-full"
-              >
-                <Plus />
-                Add Output
-              </Button>
-            </div>
-          )}
+          <div className="ml-6 pl-4 mt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setAddChildOpen(true)}
+              className="w-full"
+            >
+              <Plus />
+              Add Output
+            </Button>
+          </div>
 
           <AddNodeDialog
             open={addChildOpen}
             onOpenChange={setAddChildOpen}
-            onAdd={(_, newCondition) =>
+            onAdd={(_, newCondition) => {
+              const conditions = next.conditions || []
               onUpdateCondition({
                 ...condition,
                 next: {
                   ...next,
-                  condition: newCondition as any
+                  conditions: [...conditions, newCondition as any]
                 }
               })
-            }
+            }}
             paths={paths}
             currentPathId={currentPathId}
             mode="output"

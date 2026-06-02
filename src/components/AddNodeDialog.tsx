@@ -73,7 +73,7 @@ export function AddNodeDialog({
         id: initialNode?.id || generateId(),
         type: 'decision',
         question: question.trim(),
-        condition: initialNode?.type === 'decision' ? initialNode.condition : undefined
+        conditions: initialNode?.type === 'decision' ? initialNode.conditions : undefined
       }
     } else if (nodeType === 'condition') {
       const childNode = initialNode?.type === 'condition' ? initialNode.next : undefined

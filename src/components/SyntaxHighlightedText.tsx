@@ -24,16 +24,18 @@ function renderNode(
       </div>
     )
     
-    if (node.condition) {
-      elements.push(
-        ...renderNode(
-          node.condition,
-          paths,
-          indent,
-          prefix,
-          visitedPaths
+    if (node.conditions && node.conditions.length > 0) {
+      node.conditions.forEach(condition => {
+        elements.push(
+          ...renderNode(
+            condition,
+            paths,
+            indent,
+            prefix,
+            visitedPaths
+          )
         )
-      )
+      })
     }
   } else if (node.type === 'condition') {
     elements.push(

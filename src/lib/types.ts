@@ -4,7 +4,7 @@ export interface DecisionNode {
   id: string
   type: 'decision'
   question: string
-  condition?: ConditionNode
+  conditions?: ConditionNode[]
 }
 
 export interface OutcomeNode {

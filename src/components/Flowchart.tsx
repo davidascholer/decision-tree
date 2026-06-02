@@ -138,10 +138,12 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
 
       if (node.type === 'decision') {
         hierarchyNode.label = node.question
-        if (node.condition) {
-          const child = buildHierarchy(node.condition)
-          child.branchLabel = node.condition.label
-          hierarchyNode.children = [child]
+        if (node.conditions && node.conditions.length > 0) {
+          hierarchyNode.children = node.conditions.map(condition => {
+            const child = buildHierarchy(condition)
+            child.branchLabel = condition.label
+            return child
+          })
         }
       } else if (node.type === 'condition') {
         hierarchyNode.label = node.label

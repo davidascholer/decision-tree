@@ -7,9 +7,11 @@ export function generateId(): string {
 export function findNodeById(node: TreeNode | DecisionPath, id: string): TreeNode | DecisionPath | null {
   if (node.id === id) return node
   
-  if (node.type === 'decision' && node.condition) {
-    const found = findNodeById(node.condition, id)
-    if (found) return found
+  if (node.type === 'decision' && node.conditions) {
+    for (const condition of node.conditions) {
+      const found = findNodeById(condition, id)
+      if (found) return found
+    }
   }
   
   if (node.type === 'condition' && node.next) {
@@ -50,8 +52,8 @@ export function hasCircularReference(
       if (referencedPath) {
         return checkNode(referencedPath)
       }
-    } else if (node.type === 'decision' && node.condition) {
-      return checkNode(node.condition)
+    } else if (node.type === 'decision' && node.conditions) {
+      return node.conditions.some(condition => checkNode(condition))
     } else if (node.type === 'condition' && node.next) {
       return checkNode(node.next)
     }
@@ -66,10 +68,12 @@ export function updateNodeInTree(node: TreeNode | DecisionPath, id: string, upda
     return updater(node)
   }
   
-  if (node.type === 'decision' && node.condition) {
+  if (node.type === 'decision' && node.conditions) {
     return {
       ...node,
-      condition: updateNodeInTree(node.condition, id, updater) as ConditionNode
+      conditions: node.conditions.map(condition =>
+        updateNodeInTree(condition, id, updater) as ConditionNode
+      )
     }
   }
   
@@ -86,7 +90,7 @@ export function updateNodeInTree(node: TreeNode | DecisionPath, id: string, upda
 export function deleteConditionFromDecision(node: DecisionNode): DecisionNode {
   return {
     ...node,
-    condition: undefined
+    conditions: undefined
   }
 }
 
@@ -100,7 +104,7 @@ export function createExamplePaths(): DecisionPath[] {
     name: 'Approval Workflow',
     type: 'decision',
     question: 'Does request require manager approval?',
-    condition: {
+    conditions: [{
       id: generateId(),
       type: 'condition',
       label: 'Yes',
@@ -108,7 +112,7 @@ export function createExamplePaths(): DecisionPath[] {
         id: generateId(),
         type: 'decision',
         question: 'Is manager available?',
-        condition: {
+        conditions: [{
           id: generateId(),
           type: 'condition',
           label: 'Available',
@@ -117,9 +121,9 @@ export function createExamplePaths(): DecisionPath[] {
             type: 'outcome',
             description: 'Request approved and forwarded to fulfillment team'
           }
-        }
+        }]
       }
-    }
+    }]
   }
   
   const requestProcessing: DecisionPath = {
@@ -127,7 +131,7 @@ export function createExamplePaths(): DecisionPath[] {
     name: 'Request Processing',
     type: 'decision',
     question: 'Is the customer account in good standing?',
-    condition: {
+    conditions: [{
       id: generateId(),
       type: 'condition',
       label: 'Active',
@@ -135,7 +139,7 @@ export function createExamplePaths(): DecisionPath[] {
         id: generateId(),
         type: 'decision',
         question: 'Does customer have sufficient credit limit?',
-        condition: {
+        conditions: [{
           id: generateId(),
           type: 'condition',
           label: 'Verified',
@@ -143,7 +147,7 @@ export function createExamplePaths(): DecisionPath[] {
             id: generateId(),
             type: 'decision',
             question: 'Does order exceed standard limits?',
-            condition: {
+            conditions: [{
               id: generateId(),
               type: 'condition',
               label: 'Standard',
@@ -152,11 +156,11 @@ export function createExamplePaths(): DecisionPath[] {
                 type: 'path-reference',
                 pathId: approvalPathId
               }
-            }
+            }]
           }
-        }
+        }]
       }
-    }
+    }]
   }
   
   const routingLogic: DecisionPath = {
@@ -164,7 +168,7 @@ export function createExamplePaths(): DecisionPath[] {
     name: 'Order Routing Logic',
     type: 'decision',
     question: 'Is order urgent?',
-    condition: {
+    conditions: [{
       id: generateId(),
       type: 'condition',
       label: 'Express',
@@ -172,7 +176,7 @@ export function createExamplePaths(): DecisionPath[] {
         id: generateId(),
         type: 'decision',
         question: 'Is express shipping available in customer region?',
-        condition: {
+        conditions: [{
           id: generateId(),
           type: 'condition',
           label: 'Available',
@@ -180,7 +184,7 @@ export function createExamplePaths(): DecisionPath[] {
             id: generateId(),
             type: 'decision',
             question: 'Does customer accept express shipping surcharge?',
-            condition: {
+            conditions: [{
               id: generateId(),
               type: 'condition',
               label: 'Confirmed',
@@ -188,7 +192,7 @@ export function createExamplePaths(): DecisionPath[] {
                 id: generateId(),
                 type: 'decision',
                 question: 'Is warehouse operational?',
-                condition: {
+                conditions: [{
                   id: generateId(),
                   type: 'condition',
                   label: 'Operational',
@@ -197,13 +201,13 @@ export function createExamplePaths(): DecisionPath[] {
                     type: 'outcome',
                     description: 'Route to express fulfillment center with 24h SLA'
                   }
-                }
+                }]
               }
-            }
+            }]
           }
-        }
+        }]
       }
-    }
+    }]
   }
   
   return [approvalPath, requestProcessing, routingLogic]
@@ -221,16 +225,18 @@ export function generateTextRepresentation(
 
   if (node.type === 'decision') {
     lines.push(`${indentStr}${prefix}${node.question}`)
-    if (node.condition) {
-      lines.push(
-        generateTextRepresentation(
-          node.condition,
-          paths,
-          indent,
-          prefix,
-          visitedPaths
+    if (node.conditions && node.conditions.length > 0) {
+      node.conditions.forEach((condition, index) => {
+        lines.push(
+          generateTextRepresentation(
+            condition,
+            paths,
+            indent,
+            prefix,
+            visitedPaths
+          )
         )
-      )
+      })
     }
   } else if (node.type === 'condition') {
     lines.push(`${indentStr}${prefix}└─ [${node.label}]`)
