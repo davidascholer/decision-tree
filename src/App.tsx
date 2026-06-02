@@ -37,6 +37,8 @@ import {
   PopoverTrigger,
 } from './components/ui/popover'
 
+const STORAGE_KEY = 'decision-tree-paths'
+
 function App() {
   const [paths, setPaths] = useKV<DecisionPath[]>('decision-paths', [])
   const [selectedPathId, setSelectedPathId] = useState<string | undefined>(undefined)
@@ -50,8 +52,46 @@ function App() {
   const [exportJSON, setExportJSON] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const editInputRef = useRef<HTMLInputElement>(null)
+  const [isInitialized, setIsInitialized] = useState(false)
 
   const currentPaths = paths || []
+
+  useEffect(() => {
+    const loadFromLocalStorage = () => {
+      try {
+        const storedData = localStorage.getItem(STORAGE_KEY)
+        if (storedData) {
+          const parsedPaths = JSON.parse(storedData)
+          if (Array.isArray(parsedPaths) && parsedPaths.length > 0) {
+            setPaths(parsedPaths)
+            toast.success(`Loaded ${parsedPaths.length} decision tree(s) from localStorage`)
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load from localStorage:', error)
+        toast.error('Failed to load saved data')
+      } finally {
+        setIsInitialized(true)
+      }
+    }
+
+    if (!isInitialized) {
+      loadFromLocalStorage()
+    }
+  }, [isInitialized, setPaths])
+
+  useEffect(() => {
+    if (isInitialized && currentPaths.length > 0) {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(currentPaths))
+      } catch (error) {
+        console.error('Failed to save to localStorage:', error)
+        toast.error('Failed to save data to localStorage')
+      }
+    } else if (isInitialized && currentPaths.length === 0) {
+      localStorage.removeItem(STORAGE_KEY)
+    }
+  }, [currentPaths, isInitialized])
 
   const { canUndo, canRedo, undo, redo, pushState } = useUndoRedo<DecisionPath[]>(
     currentPaths,
