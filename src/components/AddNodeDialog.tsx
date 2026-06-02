@@ -16,6 +16,7 @@ interface AddNodeDialogProps {
   currentPathId: string
   mode: 'output' | 'edit'
   initialNode?: TreeNode
+  parentNodeType?: 'decision' | 'condition' | null
 }
 
 export function AddNodeDialog({ 
@@ -25,9 +26,10 @@ export function AddNodeDialog({
   paths, 
   currentPathId,
   mode,
-  initialNode
+  initialNode,
+  parentNodeType = null
 }: AddNodeDialogProps) {
-  const [nodeType, setNodeType] = useState<'decision' | 'outcome' | 'path-reference' | 'condition'>('decision')
+  const [nodeType, setNodeType] = useState<'decision' | 'outcome' | 'path-reference' | 'condition'>('condition')
   const [outputLabel, setOutputLabel] = useState('')
   const [question, setQuestion] = useState('')
   const [description, setDescription] = useState('')
@@ -52,9 +54,16 @@ export function AddNodeDialog({
       setDescription('')
       setSelectedPathId('')
       setConditionLabel('')
-      setNodeType('decision')
+      
+      if (parentNodeType === 'decision') {
+        setNodeType('condition')
+      } else if (parentNodeType === 'condition') {
+        setNodeType('decision')
+      } else {
+        setNodeType('condition')
+      }
     }
-  }, [open, initialNode])
+  }, [open, initialNode, parentNodeType])
 
   const handleSubmit = () => {
     let node: TreeNode
@@ -67,11 +76,7 @@ export function AddNodeDialog({
         branches: initialNode?.type === 'decision' ? initialNode.branches : []
       }
     } else if (nodeType === 'condition') {
-      const childNode = initialNode?.type === 'condition' ? initialNode.node : {
-        id: generateId(),
-        type: 'outcome' as const,
-        description: ''
-      }
+      const childNode = initialNode?.type === 'condition' ? initialNode.node : null
       node = {
         id: initialNode?.id || generateId(),
         type: 'condition',
@@ -143,10 +148,24 @@ export function AddNodeDialog({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="decision">Decision (Diamond)</SelectItem>
-                <SelectItem value="condition">Condition (Box)</SelectItem>
-                <SelectItem value="outcome">Outcome (Rounded)</SelectItem>
-                <SelectItem value="path-reference">Path Reference (Rectangle)</SelectItem>
+                {parentNodeType === 'decision' && (
+                  <SelectItem value="condition">Condition (Box)</SelectItem>
+                )}
+                {parentNodeType === 'condition' && (
+                  <>
+                    <SelectItem value="decision">Decision (Diamond)</SelectItem>
+                    <SelectItem value="outcome">Outcome (Rounded)</SelectItem>
+                    <SelectItem value="path-reference">Path Reference (Rectangle)</SelectItem>
+                  </>
+                )}
+                {!parentNodeType && mode === 'edit' && (
+                  <>
+                    <SelectItem value="decision">Decision (Diamond)</SelectItem>
+                    <SelectItem value="condition">Condition (Box)</SelectItem>
+                    <SelectItem value="outcome">Outcome (Rounded)</SelectItem>
+                    <SelectItem value="path-reference">Path Reference (Rectangle)</SelectItem>
+                  </>
+                )}
               </SelectContent>
             </Select>
           </div>

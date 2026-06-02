@@ -28,6 +28,7 @@ export function TreeNodeEditor({
 }: TreeNodeEditorProps) {
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [addConditionChildOpen, setAddConditionChildOpen] = useState(false)
   const colors = useNodeColors()
 
   const handleAddBranch = (branchLabel: string, branchNode: TreeNode) => {
@@ -195,6 +196,7 @@ export function TreeNodeEditor({
           paths={paths}
           currentPathId={currentPathId}
           mode="output"
+          parentNodeType="decision"
         />
 
         <AddNodeDialog
@@ -245,6 +247,11 @@ export function TreeNodeEditor({
 
   if (node.type === 'condition') {
     const nodeColors = getNodeColor(node.type)
+
+    const handleAddConditionChild = (_: string, newNode: TreeNode) => {
+      onUpdateNode({ ...node, node: newNode })
+    }
+
     return (
       <div className="space-y-2">
         <div 
@@ -266,15 +273,29 @@ export function TreeNodeEditor({
           </Button>
         </div>
 
-        <div className="ml-6 pl-4 border-l-2 border-border">
-          <TreeNodeEditor
-            node={node.node}
-            paths={paths}
-            currentPathId={currentPathId}
-            onUpdateNode={(updated) => onUpdateNode({ ...node, node: updated })}
-            depth={depth + 1}
-          />
-        </div>
+        {node.node ? (
+          <div className="ml-6 pl-4 border-l-2 border-border">
+            <TreeNodeEditor
+              node={node.node}
+              paths={paths}
+              currentPathId={currentPathId}
+              onUpdateNode={(updated) => onUpdateNode({ ...node, node: updated })}
+              depth={depth + 1}
+            />
+          </div>
+        ) : (
+          <div className="ml-6 pl-4">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setAddConditionChildOpen(true)}
+              className="w-full"
+            >
+              <Plus />
+              Add Content
+            </Button>
+          </div>
+        )}
 
         <AddNodeDialog
           open={editDialogOpen}
@@ -284,6 +305,16 @@ export function TreeNodeEditor({
           currentPathId={currentPathId}
           mode="edit"
           initialNode={node}
+        />
+
+        <AddNodeDialog
+          open={addConditionChildOpen}
+          onOpenChange={setAddConditionChildOpen}
+          onAdd={handleAddConditionChild}
+          paths={paths}
+          currentPathId={currentPathId}
+          mode="output"
+          parentNodeType="condition"
         />
       </div>
     )

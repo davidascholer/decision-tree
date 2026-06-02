@@ -23,7 +23,7 @@ export interface ConditionNode {
   id: string
   type: 'condition'
   label: string
-  node: TreeNode
+  node: TreeNode | null
 }
 
 export type TreeNode = DecisionNode | OutcomeNode | PathReferenceNode | ConditionNode

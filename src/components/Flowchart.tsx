@@ -145,8 +145,10 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
         })
       } else if (node.type === 'condition') {
         hierarchyNode.label = node.label
-        const child = buildHierarchy(node.node)
-        hierarchyNode.children = [child]
+        if (node.node) {
+          const child = buildHierarchy(node.node)
+          hierarchyNode.children = [child]
+        }
       } else if (node.type === 'outcome') {
         hierarchyNode.label = node.description
       } else if (node.type === 'path-reference') {

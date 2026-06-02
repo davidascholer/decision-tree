@@ -14,7 +14,7 @@ export function findNodeById(node: TreeNode, id: string): TreeNode | null {
     }
   }
   
-  if (node.type === 'condition') {
+  if (node.type === 'condition' && node.node) {
     const found = findNodeById(node.node, id)
     if (found) return found
   }
@@ -56,7 +56,7 @@ export function hasCircularReference(
       for (const branch of node.branches) {
         if (checkNode(branch.node)) return true
       }
-    } else if (node.type === 'condition') {
+    } else if (node.type === 'condition' && node.node) {
       return checkNode(node.node)
     }
     return false
@@ -83,7 +83,7 @@ export function updateNodeInTree(node: TreeNode, id: string, updater: (node: Tre
   if (node.type === 'condition') {
     return {
       ...node,
-      node: updateNodeInTree(node.node, id, updater)
+      node: node.node ? updateNodeInTree(node.node, id, updater) : null
     }
   }
   
@@ -265,15 +265,17 @@ export function generateTextRepresentation(
     })
   } else if (node.type === 'condition') {
     lines.push(`${indentStr}${prefix}[${node.label}]`)
-    lines.push(
-      generateTextRepresentation(
-        node.node,
-        paths,
-        indent,
-        prefix,
-        visitedPaths
+    if (node.node) {
+      lines.push(
+        generateTextRepresentation(
+          node.node,
+          paths,
+          indent,
+          prefix,
+          visitedPaths
+        )
       )
-    )
+    }
   } else if (node.type === 'outcome') {
     lines.push(`${indentStr}${prefix}✓ ${node.description}`)
   } else if (node.type === 'path-reference') {

@@ -54,15 +54,17 @@ function renderNode(
       </div>
     )
     
-    elements.push(
-      ...renderNode(
-        node.node,
-        paths,
-        indent,
-        prefix,
-        visitedPaths
+    if (node.node) {
+      elements.push(
+        ...renderNode(
+          node.node,
+          paths,
+          indent,
+          prefix,
+          visitedPaths
+        )
       )
-    )
+    }
   } else if (node.type === 'outcome') {
     elements.push(
       <div key={`${node.id}-${keyCounter++}`} className="leading-relaxed">
