@@ -6,6 +6,15 @@ interface SyntaxHighlightedTextProps {
   paths: DecisionPath[]
 }
 
+const COLORS = {
+  decision: 'oklch(0.72 0.15 195)',
+  condition: 'oklch(0.88 0.08 210)',
+  conditionForeground: 'oklch(0.25 0.05 210)',
+  outcome: 'oklch(0.75 0.12 160)',
+  pathRef: 'oklch(0.68 0.18 280)',
+  pathRefForeground: 'oklch(0.98 0 0)',
+}
+
 function renderNode(
   node: TreeNode | DecisionPath,
   paths: DecisionPath[],
@@ -21,7 +30,7 @@ function renderNode(
     elements.push(
       <div key={`${node.id}-${keyCounter++}`} className="leading-relaxed">
         <span className="text-muted-foreground">{indentStr}{prefix}</span>
-        <span className="text-decision font-semibold">{node.description}</span>
+        <span className="font-semibold" style={{ color: COLORS.decision }}>{node.description}</span>
       </div>
     )
     
@@ -42,7 +51,7 @@ function renderNode(
     elements.push(
       <div key={`${node.id}-${keyCounter++}`} className="leading-relaxed">
         <span className="text-muted-foreground">{indentStr}{prefix}└─ </span>
-        <span className="text-accent font-medium">[{node.description}]</span>
+        <span className="font-medium" style={{ color: COLORS.conditionForeground }}>[{node.description}]</span>
       </div>
     )
     
@@ -61,7 +70,7 @@ function renderNode(
     elements.push(
       <div key={`${node.id}-${keyCounter++}`} className="leading-relaxed">
         <span className="text-muted-foreground">{indentStr}{prefix}</span>
-        <span className="text-outcome font-medium">✓ {node.description}</span>
+        <span className="font-medium" style={{ color: COLORS.outcome }}>✓ {node.description}</span>
       </div>
     )
   } else if (node.type === 'path-reference') {
@@ -71,8 +80,8 @@ function renderNode(
         elements.push(
           <div key={`${node.id}-${keyCounter++}`} className="leading-relaxed">
             <span className="text-muted-foreground">{indentStr}{prefix}</span>
-            <span className="text-path-ref font-medium">↻ Path: </span>
-            <span className="text-path-ref-foreground italic">{referencedPath.name}</span>
+            <span className="font-medium" style={{ color: COLORS.pathRef }}>↻ Path: </span>
+            <span className="italic" style={{ color: COLORS.pathRefForeground }}>{referencedPath.name}</span>
             <span className="text-destructive"> (circular reference)</span>
           </div>
         )
@@ -80,8 +89,8 @@ function renderNode(
         elements.push(
           <div key={`${node.id}-${keyCounter++}`} className="leading-relaxed">
             <span className="text-muted-foreground">{indentStr}{prefix}</span>
-            <span className="text-path-ref font-medium">→ Path: </span>
-            <span className="text-path-ref-foreground italic">{referencedPath.name}</span>
+            <span className="font-medium" style={{ color: COLORS.pathRef }}>→ Path: </span>
+            <span className="italic" style={{ color: COLORS.pathRefForeground }}>{referencedPath.name}</span>
           </div>
         )
         visitedPaths.add(node.pathId)
@@ -99,7 +108,7 @@ function renderNode(
       elements.push(
         <div key={`${node.id}-${keyCounter++}`} className="leading-relaxed">
           <span className="text-muted-foreground">{indentStr}{prefix}</span>
-          <span className="text-path-ref font-medium">→ Path: </span>
+          <span className="font-medium" style={{ color: COLORS.pathRef }}>→ Path: </span>
           <span className="text-destructive">[Not Found]</span>
         </div>
       )
