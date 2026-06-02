@@ -30,7 +30,6 @@ export function AddNodeDialog({
   parentNodeType = null
 }: AddNodeDialogProps) {
   const [nodeType, setNodeType] = useState<'decision' | 'outcome' | 'path-reference' | 'condition'>('condition')
-  const [outputLabel, setOutputLabel] = useState('')
   const [question, setQuestion] = useState('')
   const [description, setDescription] = useState('')
   const [selectedPathId, setSelectedPathId] = useState('')
@@ -49,7 +48,6 @@ export function AddNodeDialog({
         setConditionLabel(initialNode.label)
       }
     } else if (open) {
-      setOutputLabel('')
       setQuestion('')
       setDescription('')
       setSelectedPathId('')
@@ -97,12 +95,11 @@ export function AddNodeDialog({
       }
     }
 
-    onAdd(outputLabel.trim(), node)
+    onAdd('', node)
     onOpenChange(false)
   }
 
   const isValid = () => {
-    if (mode === 'output' && !outputLabel.trim()) return false
     if (nodeType === 'decision' && !question.trim()) return false
     if (nodeType === 'condition' && !conditionLabel.trim()) return false
     if (nodeType === 'outcome' && !description.trim()) return false
@@ -129,18 +126,6 @@ export function AddNodeDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          {mode === 'output' && (
-            <div className="space-y-2">
-              <Label htmlFor="output-label">Output Label</Label>
-              <Input
-                id="output-label"
-                placeholder="e.g., Yes, No, Maybe"
-                value={outputLabel}
-                onChange={(e) => setOutputLabel(e.target.value)}
-              />
-            </div>
-          )}
-
           <div className="space-y-2">
             <Label htmlFor="node-type">Node Type</Label>
             <Select value={nodeType} onValueChange={(value: any) => setNodeType(value)} disabled={mode === 'edit'}>
@@ -190,9 +175,9 @@ export function AddNodeDialog({
 
           {nodeType === 'condition' && (
             <div className="space-y-2">
-              <Label htmlFor="condition-label">Condition Label</Label>
+              <Label htmlFor="output-label">Output Label</Label>
               <Input
-                id="condition-label"
+                id="output-label"
                 placeholder="e.g., Yes, No, Approved, Verified"
                 value={conditionLabel}
                 onChange={(e) => setConditionLabel(e.target.value)}
