@@ -121,8 +121,8 @@ export function TreeNodeEditor({
   }
 
   const getNodeLabel = (n: TreeNode | DecisionPath) => {
-    if (n.type === 'decision') return n.question
-    if (n.type === 'condition') return n.label
+    if (n.type === 'decision') return n.description
+    if (n.type === 'condition') return n.description
     if (n.type === 'outcome') return n.description
     if (n.type === 'path-reference') {
       const p = paths.find(p => p.id === n.pathId)
@@ -148,7 +148,7 @@ export function TreeNodeEditor({
           )}
           {getNodeIcon(path.type)}
           <div className="flex-1">
-            <div className="font-medium">{path.question}</div>
+            <div className="font-medium">{path.description}</div>
             <div className="text-xs opacity-80 font-mono mt-1">ID: {path.id}</div>
           </div>
           <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
@@ -184,7 +184,7 @@ export function TreeNodeEditor({
                   <div key={condition.id} className="border-l-2 border-border pl-4">
                     <div className="flex items-center justify-between mb-2">
                       <Badge variant="outline" className="font-mono">
-                        {condition.label}
+                        {condition.description}
                       </Badge>
                       <div className="flex gap-1">
                         <Button
@@ -359,8 +359,8 @@ function ConditionNodeEditor({
   }
 
   const getNodeLabel = (n: TreeNode) => {
-    if (n.type === 'decision') return n.question
-    if (n.type === 'condition') return n.label
+    if (n.type === 'decision') return n.description
+    if (n.type === 'condition') return n.description
     if (n.type === 'outcome') return n.description
     if (n.type === 'path-reference') {
       const path = paths.find(p => p.id === n.pathId)
@@ -386,7 +386,7 @@ function ConditionNodeEditor({
             )}
             {getNodeIcon(next.type)}
             <div className="flex-1">
-              <div className="font-medium">{next.question}</div>
+              <div className="font-medium">{next.description}</div>
               <div className="text-xs opacity-80 font-mono mt-1">ID: {next.id}</div>
             </div>
             <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
@@ -420,7 +420,7 @@ function ConditionNodeEditor({
                     <div key={cond.id} className="border-l-2 border-border pl-4">
                       <div className="flex items-center justify-between mb-2">
                         <Badge variant="outline" className="font-mono">
-                          {cond.label}
+                          {cond.description}
                         </Badge>
                         <div className="flex gap-1">
                           <Button

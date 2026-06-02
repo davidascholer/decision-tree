@@ -59,7 +59,7 @@ function App() {
       id: generateId(),
       name: newPathName.trim(),
       type: 'decision',
-      question: 'Start',
+      description: 'Start',
     }
 
     const newPaths = [...currentPaths, newPath]

@@ -140,16 +140,16 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
       const isCollapsed = collapsedNodes.has(node.id)
 
       if (node.type === 'decision') {
-        hierarchyNode.label = node.question
+        hierarchyNode.label = node.description
         if (node.conditions && node.conditions.length > 0 && !isCollapsed) {
           hierarchyNode.children = node.conditions.map(condition => {
             const child = buildHierarchy(condition)
-            child.branchLabel = condition.label
+            child.branchLabel = condition.description
             return child
           })
         }
       } else if (node.type === 'condition') {
-        hierarchyNode.label = node.label
+        hierarchyNode.label = node.description
         if (node.next && !isCollapsed) {
           const child = buildHierarchy(node.next)
           hierarchyNode.children = [child]

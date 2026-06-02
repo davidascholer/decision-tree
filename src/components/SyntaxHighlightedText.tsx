@@ -20,7 +20,7 @@ function renderNode(
     elements.push(
       <div key={`${node.id}-${keyCounter++}`} className="leading-relaxed">
         <span className="text-muted-foreground">{indentStr}{prefix}</span>
-        <span className="text-decision font-semibold">{node.question}</span>
+        <span className="text-decision font-semibold">{node.description}</span>
       </div>
     )
     
@@ -41,7 +41,7 @@ function renderNode(
     elements.push(
       <div key={`${node.id}-${keyCounter++}`} className="leading-relaxed">
         <span className="text-muted-foreground">{indentStr}{prefix}└─ </span>
-        <span className="text-accent font-medium">[{node.label}]</span>
+        <span className="text-accent font-medium">[{node.description}]</span>
       </div>
     )
     

@@ -30,28 +30,26 @@ export function AddNodeDialog({
   parentNodeType = null
 }: AddNodeDialogProps) {
   const [nodeType, setNodeType] = useState<'decision' | 'outcome' | 'path-reference' | 'condition'>('condition')
-  const [question, setQuestion] = useState('')
   const [description, setDescription] = useState('')
   const [selectedPathId, setSelectedPathId] = useState('')
-  const [conditionLabel, setConditionLabel] = useState('')
+  const [conditionDescription, setConditionDescription] = useState('')
 
   useEffect(() => {
     if (open && initialNode) {
       setNodeType(initialNode.type)
       if (initialNode.type === 'decision') {
-        setQuestion(initialNode.question)
+        setDescription(initialNode.description)
       } else if (initialNode.type === 'outcome') {
         setDescription(initialNode.description)
       } else if (initialNode.type === 'path-reference') {
         setSelectedPathId(initialNode.pathId)
       } else if (initialNode.type === 'condition') {
-        setConditionLabel(initialNode.label)
+        setConditionDescription(initialNode.description)
       }
     } else if (open) {
-      setQuestion('')
       setDescription('')
       setSelectedPathId('')
-      setConditionLabel('')
+      setConditionDescription('')
       
       if (parentNodeType === 'decision') {
         setNodeType('condition')
@@ -70,7 +68,7 @@ export function AddNodeDialog({
       node = {
         id: initialNode?.id || generateId(),
         type: 'decision',
-        question: question.trim(),
+        description: description.trim(),
         conditions: initialNode?.type === 'decision' ? initialNode.conditions : undefined
       }
     } else if (nodeType === 'condition') {
@@ -78,7 +76,7 @@ export function AddNodeDialog({
       node = {
         id: initialNode?.id || generateId(),
         type: 'condition',
-        label: conditionLabel.trim(),
+        description: conditionDescription.trim(),
         next: childNode
       }
     } else if (nodeType === 'outcome') {
@@ -100,8 +98,8 @@ export function AddNodeDialog({
   }
 
   const isValid = () => {
-    if (nodeType === 'decision' && !question.trim()) return false
-    if (nodeType === 'condition' && !conditionLabel.trim()) return false
+    if (nodeType === 'decision' && !description.trim()) return false
+    if (nodeType === 'condition' && !conditionDescription.trim()) return false
     if (nodeType === 'outcome' && !description.trim()) return false
     if (nodeType === 'path-reference' && !selectedPathId) return false
     if (nodeType === 'path-reference' && hasCircularReference(paths, currentPathId, selectedPathId)) return false
@@ -162,12 +160,12 @@ export function AddNodeDialog({
 
           {nodeType === 'decision' && (
             <div className="space-y-2">
-              <Label htmlFor="question">Question</Label>
+              <Label htmlFor="description">Description</Label>
               <Textarea
-                id="question"
+                id="description"
                 placeholder="What question should this decision answer?"
-                value={question}
-                onChange={(e) => setQuestion(e.target.value)}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
                 rows={3}
               />
             </div>
@@ -179,8 +177,8 @@ export function AddNodeDialog({
               <Input
                 id="output-label"
                 placeholder="e.g., Yes, No, Approved, Verified"
-                value={conditionLabel}
-                onChange={(e) => setConditionLabel(e.target.value)}
+                value={conditionDescription}
+                onChange={(e) => setConditionDescription(e.target.value)}
               />
             </div>
           )}

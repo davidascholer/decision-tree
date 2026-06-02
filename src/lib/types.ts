@@ -3,7 +3,7 @@ export type NodeType = 'decision' | 'outcome' | 'path-reference' | 'condition'
 export interface DecisionNode {
   id: string
   type: 'decision'
-  question: string
+  description: string
   conditions?: ConditionNode[]
 }
 
@@ -22,7 +22,7 @@ export interface PathReferenceNode {
 export interface ConditionNode {
   id: string
   type: 'condition'
-  label: string
+  description: string
   next?: TreeNode
 }
 

@@ -103,19 +103,19 @@ export function createExamplePaths(): DecisionPath[] {
     id: approvalPathId,
     name: 'Approval Workflow',
     type: 'decision',
-    question: 'Does request require manager approval?',
+    description: 'Does request require manager approval?',
     conditions: [{
       id: generateId(),
       type: 'condition',
-      label: 'Yes',
+      description: 'Yes',
       next: {
         id: generateId(),
         type: 'decision',
-        question: 'Is manager available?',
+        description: 'Is manager available?',
         conditions: [{
           id: generateId(),
           type: 'condition',
-          label: 'Available',
+          description: 'Available',
           next: {
             id: generateId(),
             type: 'outcome',
@@ -130,27 +130,27 @@ export function createExamplePaths(): DecisionPath[] {
     id: requestProcessingId,
     name: 'Request Processing',
     type: 'decision',
-    question: 'Is the customer account in good standing?',
+    description: 'Is the customer account in good standing?',
     conditions: [{
       id: generateId(),
       type: 'condition',
-      label: 'Active',
+      description: 'Active',
       next: {
         id: generateId(),
         type: 'decision',
-        question: 'Does customer have sufficient credit limit?',
+        description: 'Does customer have sufficient credit limit?',
         conditions: [{
           id: generateId(),
           type: 'condition',
-          label: 'Verified',
+          description: 'Verified',
           next: {
             id: generateId(),
             type: 'decision',
-            question: 'Does order exceed standard limits?',
+            description: 'Does order exceed standard limits?',
             conditions: [{
               id: generateId(),
               type: 'condition',
-              label: 'Standard',
+              description: 'Standard',
               next: {
                 id: generateId(),
                 type: 'path-reference',
@@ -167,35 +167,35 @@ export function createExamplePaths(): DecisionPath[] {
     id: routingLogicId,
     name: 'Order Routing Logic',
     type: 'decision',
-    question: 'Is order urgent?',
+    description: 'Is order urgent?',
     conditions: [{
       id: generateId(),
       type: 'condition',
-      label: 'Express',
+      description: 'Express',
       next: {
         id: generateId(),
         type: 'decision',
-        question: 'Is express shipping available in customer region?',
+        description: 'Is express shipping available in customer region?',
         conditions: [{
           id: generateId(),
           type: 'condition',
-          label: 'Available',
+          description: 'Available',
           next: {
             id: generateId(),
             type: 'decision',
-            question: 'Does customer accept express shipping surcharge?',
+            description: 'Does customer accept express shipping surcharge?',
             conditions: [{
               id: generateId(),
               type: 'condition',
-              label: 'Confirmed',
+              description: 'Confirmed',
               next: {
                 id: generateId(),
                 type: 'decision',
-                question: 'Is warehouse operational?',
+                description: 'Is warehouse operational?',
                 conditions: [{
                   id: generateId(),
                   type: 'condition',
-                  label: 'Operational',
+                  description: 'Operational',
                   next: {
                     id: generateId(),
                     type: 'outcome',
@@ -224,7 +224,7 @@ export function generateTextRepresentation(
   const lines: string[] = []
 
   if (node.type === 'decision') {
-    lines.push(`${indentStr}${prefix}${node.question}`)
+    lines.push(`${indentStr}${prefix}${node.description}`)
     if (node.conditions && node.conditions.length > 0) {
       node.conditions.forEach((condition, index) => {
         lines.push(
@@ -239,7 +239,7 @@ export function generateTextRepresentation(
       })
     }
   } else if (node.type === 'condition') {
-    lines.push(`${indentStr}${prefix}└─ [${node.label}]`)
+    lines.push(`${indentStr}${prefix}└─ [${node.description}]`)
     if (node.next) {
       lines.push(
         generateTextRepresentation(
