@@ -1,4 +1,4 @@
-import { DecisionPath, TreeNode, Branch } from '@/lib/types'
+import { DecisionPath, TreeNode } from '@/lib/types'
 import * as d3 from 'd3'
 import { useEffect, useRef } from 'react'
 
@@ -7,21 +7,13 @@ interface FlowchartProps {
   selectedPathId?: string
 }
 
-interface FlowNode {
+interface HierarchyNode {
   id: string
   type: 'decision' | 'outcome' | 'path-reference' | 'start'
   label: string
   pathId?: string
-  x?: number
-  y?: number
-  width?: number
-  height?: number
-}
-
-interface FlowLink {
-  source: string
-  target: string
-  label?: string
+  children?: HierarchyNode[]
+  branchLabel?: string
 }
 
 export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
@@ -36,66 +28,85 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
     
     if (!selectedPath) return
 
-    const nodes: FlowNode[] = []
-    const links: FlowLink[] = []
-
-    nodes.push({
-      id: 'start',
-      type: 'start',
-      label: selectedPath.name
-    })
-
-    function processNode(node: TreeNode, parentId: string, branchLabel?: string) {
-      const flowNode: FlowNode = {
+    function buildHierarchy(node: TreeNode): HierarchyNode {
+      const hierarchyNode: HierarchyNode = {
         id: node.id,
         type: node.type,
         label: '',
-        pathId: node.type === 'path-reference' ? node.pathId : undefined
+        pathId: node.type === 'path-reference' ? node.pathId : undefined,
+        children: []
       }
 
       if (node.type === 'decision') {
-        flowNode.label = node.question
+        hierarchyNode.label = node.question
+        hierarchyNode.children = node.branches.map(branch => {
+          const child = buildHierarchy(branch.node)
+          child.branchLabel = branch.label
+          return child
+        })
       } else if (node.type === 'outcome') {
-        flowNode.label = node.description
+        hierarchyNode.label = node.description
       } else if (node.type === 'path-reference') {
         const referencedPath = paths.find(p => p.id === node.pathId)
-        flowNode.label = referencedPath?.name || 'Unknown Path'
+        hierarchyNode.label = referencedPath?.name || 'Unknown Path'
       }
 
-      nodes.push(flowNode)
-      links.push({ source: parentId, target: node.id, label: branchLabel })
-
-      if (node.type === 'decision') {
-        node.branches.forEach(branch => {
-          processNode(branch.node, node.id, branch.label)
-        })
-      }
+      return hierarchyNode
     }
 
-    processNode(selectedPath.node, 'start')
+    const rootData: HierarchyNode = {
+      id: 'start',
+      type: 'start',
+      label: selectedPath.name,
+      children: [buildHierarchy(selectedPath.node)]
+    }
 
     const svg = d3.select(svgRef.current)
     svg.selectAll('*').remove()
 
-    const width = 1200
-    const height = Math.max(600, nodes.length * 100)
-    
+    const nodeWidth = 180
+    const nodeHeight = 80
+    const horizontalSpacing = 80
+    const verticalSpacing = 120
+
+    const root = d3.hierarchy(rootData)
+    const treeLayout = d3.tree<HierarchyNode>()
+      .nodeSize([nodeWidth + horizontalSpacing, nodeHeight + verticalSpacing])
+      .separation((a, b) => a.parent === b.parent ? 1 : 1.2)
+
+    treeLayout(root)
+
+    const nodes = root.descendants()
+    const links = root.links()
+
+    let minX = Infinity
+    let maxX = -Infinity
+    let minY = Infinity
+    let maxY = -Infinity
+
+    nodes.forEach(node => {
+      minX = Math.min(minX, node.x)
+      maxX = Math.max(maxX, node.x)
+      minY = Math.min(minY, node.y)
+      maxY = Math.max(maxY, node.y)
+    })
+
+    const width = maxX - minX + nodeWidth + 100
+    const height = maxY - minY + nodeHeight + 100
+    const offsetX = -minX + 50
+    const offsetY = -minY + 50
+
     svg.attr('width', width).attr('height', height)
 
     const g = svg.append('g')
-
-    const simulation = d3.forceSimulation(nodes as any)
-      .force('link', d3.forceLink(links).id((d: any) => d.id).distance(150))
-      .force('charge', d3.forceManyBody().strength(-500))
-      .force('center', d3.forceCenter(width / 2, height / 2))
-      .force('collision', d3.forceCollide().radius(80))
+      .attr('transform', `translate(${offsetX},${offsetY})`)
 
     const defs = svg.append('defs')
     const marker = defs.append('marker')
       .attr('id', 'arrowhead')
       .attr('markerWidth', 10)
       .attr('markerHeight', 10)
-      .attr('refX', 20)
+      .attr('refX', 8)
       .attr('refY', 3)
       .attr('orient', 'auto')
     
@@ -103,132 +114,131 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
       .attr('points', '0 0, 10 3, 0 6')
       .attr('fill', 'oklch(0.45 0.15 250)')
 
-    const link = g.append('g')
-      .selectAll('line')
-      .data(links)
-      .join('line')
+    const linkGroup = g.append('g')
+      .attr('fill', 'none')
       .attr('stroke', 'oklch(0.45 0.15 250)')
       .attr('stroke-width', 2)
+
+    linkGroup.selectAll('path')
+      .data(links)
+      .join('path')
+      .attr('d', d => {
+        const sourceY = d.source.y + nodeHeight / 2
+        const targetY = d.target.y - nodeHeight / 2
+        const midY = (sourceY + targetY) / 2
+        
+        return `M ${d.source.x},${sourceY}
+                C ${d.source.x},${midY}
+                  ${d.target.x},${midY}
+                  ${d.target.x},${targetY}`
+      })
       .attr('marker-end', 'url(#arrowhead)')
 
     const linkLabels = g.append('g')
       .selectAll('text')
       .data(links)
       .join('text')
-      .attr('font-size', 12)
-      .attr('fill', 'oklch(0.55 0.02 250)')
+      .attr('font-size', 11)
+      .attr('font-weight', 500)
+      .attr('fill', 'oklch(0.45 0.15 250)')
       .attr('text-anchor', 'middle')
-      .text(d => d.label || '')
+      .attr('x', d => d.target.x)
+      .attr('y', d => d.target.y - nodeHeight / 2 - 10)
+      .text(d => d.target.data.branchLabel || '')
 
-    const node = g.append('g')
+    const nodeGroup = g.append('g')
       .selectAll('g')
       .data(nodes)
       .join('g')
-      .call(d3.drag<any, any>()
-        .on('start', dragstarted)
-        .on('drag', dragged)
-        .on('end', dragended) as any)
+      .attr('transform', d => `translate(${d.x},${d.y})`)
 
-    node.each(function(d) {
+    nodeGroup.each(function(d) {
       const g = d3.select(this)
+      const nodeData = d.data
       
-      if (d.type === 'start') {
+      const shapeWidth = nodeData.type === 'decision' ? 140 : 160
+      const shapeHeight = nodeData.type === 'decision' ? 90 : 70
+      
+      if (nodeData.type === 'start') {
         g.append('rect')
-          .attr('width', 120)
-          .attr('height', 50)
-          .attr('x', -60)
-          .attr('y', -25)
+          .attr('width', shapeWidth)
+          .attr('height', shapeHeight)
+          .attr('x', -shapeWidth / 2)
+          .attr('y', -shapeHeight / 2)
           .attr('fill', 'oklch(0.45 0.15 250)')
-          .attr('rx', 8)
-      } else if (d.type === 'decision') {
+          .attr('rx', 10)
+      } else if (nodeData.type === 'decision') {
+        const halfW = shapeWidth / 2
+        const halfH = shapeHeight / 2
         g.append('path')
-          .attr('d', 'M 0,-40 L 60,0 L 0,40 L -60,0 Z')
+          .attr('d', `M 0,${-halfH} L ${halfW},0 L 0,${halfH} L ${-halfW},0 Z`)
           .attr('fill', 'oklch(0.70 0.15 70)')
           .attr('stroke', 'oklch(0.25 0.05 70)')
           .attr('stroke-width', 2)
-      } else if (d.type === 'outcome') {
+      } else if (nodeData.type === 'outcome') {
         g.append('rect')
-          .attr('width', 120)
-          .attr('height', 50)
-          .attr('x', -60)
-          .attr('y', -25)
+          .attr('width', shapeWidth)
+          .attr('height', shapeHeight)
+          .attr('x', -shapeWidth / 2)
+          .attr('y', -shapeHeight / 2)
           .attr('fill', 'oklch(0.65 0.15 145)')
           .attr('stroke', 'oklch(0.25 0.08 145)')
           .attr('stroke-width', 2)
-          .attr('rx', 25)
-      } else if (d.type === 'path-reference') {
+          .attr('rx', 35)
+      } else if (nodeData.type === 'path-reference') {
         g.append('rect')
-          .attr('width', 120)
-          .attr('height', 50)
-          .attr('x', -60)
-          .attr('y', -25)
+          .attr('width', shapeWidth)
+          .attr('height', shapeHeight)
+          .attr('x', -shapeWidth / 2)
+          .attr('y', -shapeHeight / 2)
           .attr('fill', 'oklch(0.60 0.15 290)')
           .attr('stroke', 'oklch(0.25 0.05 290)')
           .attr('stroke-width', 2)
-          .attr('rx', 8)
+          .attr('rx', 10)
       }
 
-      g.append('text')
+      const maxChars = nodeData.type === 'decision' ? 18 : 22
+      const wrappedLines = wrapText(nodeData.label, maxChars)
+      
+      const textGroup = g.append('text')
         .attr('text-anchor', 'middle')
         .attr('dominant-baseline', 'middle')
-        .attr('fill', d.type === 'start' ? 'oklch(0.98 0 0)' : 'oklch(0.15 0 0)')
-        .attr('font-size', 13)
+        .attr('fill', nodeData.type === 'start' ? 'oklch(0.98 0 0)' : 'oklch(0.15 0 0)')
+        .attr('font-size', 12)
         .attr('font-weight', 500)
-        .selectAll('tspan')
-        .data(wrapText(d.label, 15))
-        .join('tspan')
-        .attr('x', 0)
-        .attr('dy', (_, i) => i === 0 ? 0 : 14)
-        .text(t => t)
+      
+      const lineHeight = 14
+      const totalHeight = wrappedLines.length * lineHeight
+      const startY = -(totalHeight / 2) + (lineHeight / 2)
+      
+      wrappedLines.forEach((line, i) => {
+        textGroup.append('tspan')
+          .attr('x', 0)
+          .attr('y', startY + i * lineHeight)
+          .text(line)
+      })
     })
 
-    simulation.on('tick', () => {
-      link
-        .attr('x1', (d: any) => d.source.x)
-        .attr('y1', (d: any) => d.source.y)
-        .attr('x2', (d: any) => d.target.x)
-        .attr('y2', (d: any) => d.target.y)
-
-      linkLabels
-        .attr('x', (d: any) => (d.source.x + d.target.x) / 2)
-        .attr('y', (d: any) => (d.source.y + d.target.y) / 2 - 10)
-
-      node.attr('transform', (d: any) => `translate(${d.x},${d.y})`)
-    })
-
-    function dragstarted(event: any) {
-      if (!event.active) simulation.alphaTarget(0.3).restart()
-      event.subject.fx = event.subject.x
-      event.subject.fy = event.subject.y
-    }
-
-    function dragged(event: any) {
-      event.subject.fx = event.x
-      event.subject.fy = event.y
-    }
-
-    function dragended(event: any) {
-      if (!event.active) simulation.alphaTarget(0)
-      event.subject.fx = null
-      event.subject.fy = null
-    }
-
-    function wrapText(text: string, maxLength: number): string[] {
+    function wrapText(text: string, maxChars: number): string[] {
+      if (text.length <= maxChars) return [text]
+      
       const words = text.split(' ')
       const lines: string[] = []
       let currentLine = ''
 
       words.forEach(word => {
-        if ((currentLine + word).length <= maxLength) {
-          currentLine += (currentLine ? ' ' : '') + word
+        const testLine = currentLine ? `${currentLine} ${word}` : word
+        if (testLine.length <= maxChars) {
+          currentLine = testLine
         } else {
           if (currentLine) lines.push(currentLine)
           currentLine = word
         }
       })
+      
       if (currentLine) lines.push(currentLine)
-
-      return lines.slice(0, 3)
+      
+      return lines.slice(0, 4)
     }
 
   }, [paths, selectedPathId])
