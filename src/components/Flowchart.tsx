@@ -1,6 +1,8 @@
 import { DecisionPath, TreeNode } from '@/lib/types'
 import * as d3 from 'd3'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { Button } from './ui/button'
+import { Plus, Minus, ArrowsOut } from '@phosphor-icons/react'
 
 interface FlowchartProps {
   paths: DecisionPath[]
@@ -24,6 +26,68 @@ interface HierarchyNode {
 
 export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
   const svgRef = useRef<SVGSVGElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [zoom, setZoom] = useState(1)
+  const [pan, setPan] = useState({ x: 0, y: 0 })
+  const [isPanning, setIsPanning] = useState(false)
+  const [startPan, setStartPan] = useState({ x: 0, y: 0 })
+
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault()
+      
+      const rect = container.getBoundingClientRect()
+      const mouseX = e.clientX - rect.left
+      const mouseY = e.clientY - rect.top
+      
+      const delta = e.deltaY > 0 ? 0.9 : 1.1
+      const newZoom = Math.min(Math.max(zoom * delta, 0.1), 5)
+      
+      const zoomRatio = newZoom / zoom
+      setPan(prev => ({
+        x: mouseX - (mouseX - prev.x) * zoomRatio,
+        y: mouseY - (mouseY - prev.y) * zoomRatio
+      }))
+      setZoom(newZoom)
+    }
+
+    const handleMouseDown = (e: MouseEvent) => {
+      if (e.button === 0) {
+        setIsPanning(true)
+        setStartPan({ x: e.clientX - pan.x, y: e.clientY - pan.y })
+        container.style.cursor = 'grabbing'
+      }
+    }
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (isPanning) {
+        setPan({
+          x: e.clientX - startPan.x,
+          y: e.clientY - startPan.y
+        })
+      }
+    }
+
+    const handleMouseUp = () => {
+      setIsPanning(false)
+      container.style.cursor = 'grab'
+    }
+
+    container.addEventListener('wheel', handleWheel, { passive: false })
+    container.addEventListener('mousedown', handleMouseDown)
+    window.addEventListener('mousemove', handleMouseMove)
+    window.addEventListener('mouseup', handleMouseUp)
+
+    return () => {
+      container.removeEventListener('wheel', handleWheel)
+      container.removeEventListener('mousedown', handleMouseDown)
+      window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [zoom, pan, isPanning, startPan])
 
   useEffect(() => {
     if (!svgRef.current) return
@@ -287,9 +351,67 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
 
   }, [paths, selectedPathId])
 
+  const handleZoomIn = () => {
+    setZoom(prev => Math.min(prev * 1.2, 5))
+  }
+
+  const handleZoomOut = () => {
+    setZoom(prev => Math.max(prev * 0.8, 0.1))
+  }
+
+  const handleReset = () => {
+    setZoom(1)
+    setPan({ x: 0, y: 0 })
+  }
+
   return (
-    <div className="w-full h-full overflow-auto bg-muted/20 rounded-lg border">
-      <svg ref={svgRef} className="min-w-full min-h-full" />
+    <div 
+      ref={containerRef}
+      className="w-full h-full overflow-hidden bg-muted/20 rounded-lg border relative cursor-grab"
+    >
+      <div 
+        style={{
+          transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+          transformOrigin: '0 0',
+          transition: isPanning ? 'none' : 'transform 0.1s ease-out'
+        }}
+      >
+        <svg ref={svgRef} className="min-w-full min-h-full" />
+      </div>
+      
+      <div className="absolute top-4 right-4 flex gap-2">
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={handleZoomIn}
+          title="Zoom In"
+          className="h-9 w-9 p-0 shadow-lg"
+        >
+          <Plus weight="bold" />
+        </Button>
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={handleZoomOut}
+          title="Zoom Out"
+          className="h-9 w-9 p-0 shadow-lg"
+        >
+          <Minus weight="bold" />
+        </Button>
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={handleReset}
+          title="Reset View"
+          className="h-9 w-9 p-0 shadow-lg"
+        >
+          <ArrowsOut weight="bold" />
+        </Button>
+      </div>
+      
+      <div className="absolute bottom-4 right-4 bg-card/90 backdrop-blur-sm border rounded-lg px-3 py-1.5 text-xs font-mono text-muted-foreground shadow-lg pointer-events-none">
+        Zoom: {(zoom * 100).toFixed(0)}%
+      </div>
     </div>
   )
 }
