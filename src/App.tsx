@@ -24,6 +24,14 @@ import {
   AlertDialogTitle,
 } from './components/ui/alert-dialog'
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from './components/ui/dialog'
+import {
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -38,6 +46,8 @@ function App() {
   const [pathToDelete, setPathToDelete] = useState<{ id: string; name: string } | null>(null)
   const [editingPathId, setEditingPathId] = useState<string | null>(null)
   const [editingPathName, setEditingPathName] = useState('')
+  const [exportDialogOpen, setExportDialogOpen] = useState(false)
+  const [exportJSON, setExportJSON] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const editInputRef = useRef<HTMLInputElement>(null)
 
@@ -172,7 +182,12 @@ function App() {
 
   const handleExportJSON = () => {
     const dataStr = JSON.stringify({ paths: currentPaths }, null, 2)
-    const dataBlob = new Blob([dataStr], { type: 'application/json' })
+    setExportJSON(dataStr)
+    setExportDialogOpen(true)
+  }
+
+  const handleDownloadJSON = () => {
+    const dataBlob = new Blob([exportJSON], { type: 'application/json' })
     const url = URL.createObjectURL(dataBlob)
     const link = document.createElement('a')
     link.href = url
@@ -181,7 +196,12 @@ function App() {
     link.click()
     document.body.removeChild(link)
     URL.revokeObjectURL(url)
-    toast.success('Decision trees exported to JSON')
+    toast.success('Decision trees downloaded')
+  }
+
+  const handleCopyExportJSON = () => {
+    navigator.clipboard.writeText(exportJSON)
+    toast.success('JSON copied to clipboard')
   }
 
   const handleImportJSON = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -280,6 +300,37 @@ function App() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={exportDialogOpen} onOpenChange={setExportDialogOpen}>
+        <DialogContent className="max-w-3xl max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="text-xl flex items-center gap-2">
+              <Code className="text-primary" weight="duotone" />
+              Export Decision Trees
+            </DialogTitle>
+            <DialogDescription>
+              Copy the JSON or download it as a file to import into another instance.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="flex-1 overflow-hidden">
+            <pre className="bg-muted p-4 rounded-lg overflow-auto h-full text-sm font-mono max-h-[50vh]">
+              <code>{exportJSON}</code>
+            </pre>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={handleCopyExportJSON}>
+              <Copy />
+              Copy to Clipboard
+            </Button>
+            <Button onClick={handleDownloadJSON}>
+              <Download />
+              Download JSON
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       
       <div className="container mx-auto p-6 max-w-7xl">
         <header className="mb-8">
