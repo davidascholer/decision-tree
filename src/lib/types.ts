@@ -35,3 +35,11 @@ export type DecisionPath = (DecisionNode | OutcomeNode | PathReferenceNode) & {
 export interface DecisionTreeData {
   paths: DecisionPath[]
 }
+
+export interface SaveHistoryEntry {
+  id: string
+  timestamp: Date
+  pathCount: number
+  totalNodes: number
+  action?: string
+}

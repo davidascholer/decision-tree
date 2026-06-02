@@ -1,11 +1,11 @@
 import { useKV } from '@github/spark/hooks'
-import { DecisionPath, TreeNode } from './lib/types'
+import { DecisionPath, TreeNode, SaveHistoryEntry } from './lib/types'
 import { generateId, createExamplePaths, generateTextRepresentation, isPathReferencedByOthers } from './lib/tree-utils'
 import { Button } from './components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs'
 import { Input } from './components/ui/input'
-import { Plus, Trash, List, Tree, Download, Upload, Code, Copy, Sparkle, TextAa, ArrowCounterClockwise, ArrowClockwise, Warning, Question, DiamondsFour, CheckCircle, FlowArrow, PencilSimple, Check, X, CheckCircle as CheckCircleIcon, Clock } from '@phosphor-icons/react'
+import { Plus, Trash, List, Tree, Download, Upload, Code, Copy, Sparkle, TextAa, ArrowCounterClockwise, ArrowClockwise, Warning, Question, DiamondsFour, CheckCircle, FlowArrow, PencilSimple, Check, X, CheckCircle as CheckCircleIcon, Clock, ClockCounterClockwise } from '@phosphor-icons/react'
 import { useState, useRef, useEffect } from 'react'
 import { TreeNodeEditor } from './components/TreeNodeEditor'
 import { Flowchart } from './components/Flowchart'
@@ -36,8 +36,10 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from './components/ui/popover'
+import { ScrollArea } from './components/ui/scroll-area'
 
 const STORAGE_KEY = 'decision-tree-paths'
+const HISTORY_KEY = 'decision-tree-history'
 
 function App() {
   const [paths, setPaths] = useKV<DecisionPath[]>('decision-paths', [])
@@ -56,8 +58,59 @@ function App() {
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [timeDisplay, setTimeDisplay] = useState<string>('')
+  const [saveHistory, setSaveHistory] = useState<SaveHistoryEntry[]>([])
+  const [historyDialogOpen, setHistoryDialogOpen] = useState(false)
 
   const currentPaths = paths || []
+
+  const countTotalNodes = (paths: DecisionPath[]): number => {
+    let count = paths.length
+    
+    const countNodeChildren = (node: TreeNode): number => {
+      let nodeCount = 1
+      if ('conditions' in node && node.conditions) {
+        node.conditions.forEach(condition => {
+          nodeCount += 1
+          if (condition.next) {
+            nodeCount += countNodeChildren(condition.next)
+          }
+        })
+      }
+      return nodeCount
+    }
+    
+    paths.forEach(path => {
+      if ('conditions' in path && path.conditions) {
+        path.conditions.forEach(condition => {
+          count += 1
+          if (condition.next) {
+            count += countNodeChildren(condition.next)
+          }
+        })
+      }
+    })
+    
+    return count
+  }
+
+  const addToHistory = (action?: string) => {
+    const newEntry: SaveHistoryEntry = {
+      id: generateId(),
+      timestamp: new Date(),
+      pathCount: currentPaths.length,
+      totalNodes: countTotalNodes(currentPaths),
+      action
+    }
+    
+    const updatedHistory = [newEntry, ...saveHistory].slice(0, 50)
+    setSaveHistory(updatedHistory)
+    
+    try {
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(updatedHistory))
+    } catch (error) {
+      console.error('Failed to save history:', error)
+    }
+  }
 
   useEffect(() => {
     const loadFromLocalStorage = () => {
@@ -68,6 +121,18 @@ function App() {
           if (Array.isArray(parsedPaths) && parsedPaths.length > 0) {
             setPaths(parsedPaths)
             toast.success(`Loaded ${parsedPaths.length} decision tree(s) from localStorage`)
+          }
+        }
+        
+        const storedHistory = localStorage.getItem(HISTORY_KEY)
+        if (storedHistory) {
+          const parsedHistory = JSON.parse(storedHistory)
+          if (Array.isArray(parsedHistory)) {
+            const historyWithDates = parsedHistory.map(entry => ({
+              ...entry,
+              timestamp: new Date(entry.timestamp)
+            }))
+            setSaveHistory(historyWithDates)
           }
         }
       } catch (error) {
@@ -89,6 +154,7 @@ function App() {
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(currentPaths))
         setLastSaved(new Date())
+        addToHistory()
         setTimeout(() => setIsSaving(false), 500)
       } catch (error) {
         console.error('Failed to save to localStorage:', error)
@@ -342,6 +408,17 @@ function App() {
     return `${days}d ago`
   }
 
+  const formatFullTimestamp = (date: Date): string => {
+    return date.toLocaleString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    })
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <Toaster />
@@ -409,6 +486,95 @@ function App() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={historyDialogOpen} onOpenChange={setHistoryDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="text-xl flex items-center gap-2">
+              <ClockCounterClockwise className="text-primary" weight="duotone" />
+              Save History
+            </DialogTitle>
+            <DialogDescription>
+              View all previous saves with timestamps and details
+            </DialogDescription>
+          </DialogHeader>
+          
+          <ScrollArea className="flex-1 max-h-[500px]">
+            {saveHistory.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <ClockCounterClockwise size={48} className="text-muted-foreground mb-3" weight="duotone" />
+                <p className="text-muted-foreground">No save history yet</p>
+                <p className="text-sm text-muted-foreground mt-1">History will appear as you make changes</p>
+              </div>
+            ) : (
+              <div className="space-y-2 pr-4">
+                {saveHistory.map((entry, index) => {
+                  const isRecent = index === 0
+                  const date = entry.timestamp
+                  const timeStr = date.toLocaleTimeString('en-US', { 
+                    hour: '2-digit', 
+                    minute: '2-digit',
+                    second: '2-digit'
+                  })
+                  const dateStr = date.toLocaleDateString('en-US', { 
+                    month: 'short', 
+                    day: 'numeric',
+                    year: 'numeric'
+                  })
+                  
+                  return (
+                    <div
+                      key={entry.id}
+                      className={`p-4 rounded-lg border-2 ${
+                        isRecent 
+                          ? 'bg-accent/10 border-accent' 
+                          : 'bg-card border-border'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="font-semibold text-foreground">
+                              {timeStr}
+                            </span>
+                            {isRecent && (
+                              <span className="text-xs px-2 py-0.5 rounded-full bg-accent text-accent-foreground font-medium">
+                                Latest
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-sm text-muted-foreground mb-2">
+                            {dateStr}
+                          </div>
+                          <div className="flex gap-4 text-sm">
+                            <div className="flex items-center gap-1.5">
+                              <Tree size={14} className="text-primary" />
+                              <span className="text-muted-foreground">
+                                {entry.pathCount} {entry.pathCount === 1 ? 'path' : 'paths'}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <DiamondsFour size={14} className="text-primary" />
+                              <span className="text-muted-foreground">
+                                {entry.totalNodes} {entry.totalNodes === 1 ? 'node' : 'nodes'}
+                              </span>
+                            </div>
+                          </div>
+                          {entry.action && (
+                            <div className="mt-2 text-xs text-muted-foreground italic">
+                              {entry.action}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
       
       <div className="container mx-auto p-6 max-w-7xl">
         <header className="mb-8">
@@ -417,18 +583,29 @@ function App() {
               <div className="flex items-center gap-3 mb-2">
                 <h1 className="text-4xl font-bold text-primary">Decision Tree Visualizer</h1>
                 {isInitialized && currentPaths.length > 0 && (
-                  <div className="flex items-center gap-2 text-sm px-3 py-1 rounded-full bg-muted border border-border">
-                    {isSaving ? (
-                      <>
-                        <Clock className="text-accent animate-pulse" size={16} />
-                        <span className="text-muted-foreground">Saving...</span>
-                      </>
-                    ) : lastSaved ? (
-                      <>
-                        <CheckCircleIcon className="text-accent" size={16} weight="fill" />
-                        <span className="text-muted-foreground">Saved {timeDisplay}</span>
-                      </>
-                    ) : null}
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 text-sm px-3 py-1 rounded-full bg-muted border border-border">
+                      {isSaving ? (
+                        <>
+                          <Clock className="text-accent animate-pulse" size={16} />
+                          <span className="text-muted-foreground">Saving...</span>
+                        </>
+                      ) : lastSaved ? (
+                        <>
+                          <CheckCircleIcon className="text-accent" size={16} weight="fill" />
+                          <span className="text-muted-foreground">Saved {timeDisplay}</span>
+                        </>
+                      ) : null}
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setHistoryDialogOpen(true)}
+                      title="View Save History"
+                    >
+                      <ClockCounterClockwise />
+                      History
+                    </Button>
                   </div>
                 )}
               </div>
