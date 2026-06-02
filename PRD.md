@@ -54,12 +54,29 @@ This is a focused decision tree editor with CRUD operations, nested data structu
 - **Progression**: Click edit → Modify text inline → Save → Or click delete → Confirm → Node removed
 - **Success criteria**: Changes persist to storage, visualization updates immediately, deleting a node removes all children
 
+### Export Decision Trees as JSON
+- **Functionality**: Download all decision trees as a formatted JSON file
+- **Purpose**: Enable sharing with team members and backing up decision logic
+- **Trigger**: Click "Export" button in header
+- **Progression**: Click export → JSON file downloads with timestamp → Toast confirms success
+- **Success criteria**: File contains complete tree structure with all nodes and relationships, formatted for readability
+
+### Import Decision Trees from JSON
+- **Functionality**: Load decision trees from a JSON file
+- **Purpose**: Restore backed up trees or import trees shared by team members
+- **Trigger**: Click "Import" button in header
+- **Progression**: Click import → Select JSON file → Trees loaded → Toast shows count → First tree auto-selected
+- **Success criteria**: All valid trees are imported, invalid files show clear error message, imported trees persist to storage
+
 ## Edge Case Handling
 - **Empty State**: Shows helpful prompt to create first path when no trees exist
 - **Circular References**: Prevents selecting a path as a reference if it would create a circular dependency
 - **Deep Nesting**: Accordion collapses deeply nested decisions by default, expandable on demand
 - **Long Text**: Decision questions and outcomes truncate with ellipsis in compact views
 - **Delete Confirmation**: Warns when deleting nodes with children that all nested content will be lost
+- **Invalid JSON Import**: Shows clear error message when imported file is not valid JSON or doesn't match expected structure
+- **Empty JSON Export**: Export button is disabled when no decision trees exist
+- **Import Overwrites**: Imported trees replace all existing trees (user should export first to backup)
 
 ## Design Direction
 The design should feel technical and structured like a professional diagramming tool, while remaining approachable and modern. It should evoke the precision of technical documentation with clean lines, clear hierarchy, and purposeful use of color to distinguish different node types.

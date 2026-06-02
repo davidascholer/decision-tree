@@ -5,8 +5,8 @@ import { Button } from './components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs'
 import { Input } from './components/ui/input'
-import { Plus, Trash, List, Tree } from '@phosphor-icons/react'
-import { useState } from 'react'
+import { Plus, Trash, List, Tree, Download, Upload } from '@phosphor-icons/react'
+import { useState, useRef } from 'react'
 import { TreeNodeEditor } from './components/TreeNodeEditor'
 import { Flowchart } from './components/Flowchart'
 import { toast } from 'sonner'
@@ -17,6 +17,7 @@ function App() {
   const [selectedPathId, setSelectedPathId] = useState<string | undefined>(undefined)
   const [newPathName, setNewPathName] = useState('')
   const [showNewPathInput, setShowNewPathInput] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const currentPaths = paths || []
 
@@ -60,17 +61,93 @@ function App() {
     )
   }
 
+  const handleExportJSON = () => {
+    const dataStr = JSON.stringify({ paths: currentPaths }, null, 2)
+    const dataBlob = new Blob([dataStr], { type: 'application/json' })
+    const url = URL.createObjectURL(dataBlob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `decision-trees-${new Date().toISOString().split('T')[0]}.json`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+    toast.success('Decision trees exported to JSON')
+  }
+
+  const handleImportJSON = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      try {
+        const content = e.target?.result as string
+        const data = JSON.parse(content)
+        
+        if (!data.paths || !Array.isArray(data.paths)) {
+          toast.error('Invalid JSON format: must contain a "paths" array')
+          return
+        }
+
+        setPaths(data.paths)
+        toast.success(`Imported ${data.paths.length} decision tree(s)`)
+        
+        if (data.paths.length > 0 && !selectedPathId) {
+          setSelectedPathId(data.paths[0].id)
+        }
+      } catch (error) {
+        toast.error('Failed to parse JSON file')
+      }
+    }
+    reader.readAsText(file)
+    
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }
+
   const selectedPath = selectedPathId ? currentPaths.find(p => p.id === selectedPathId) : undefined
 
   return (
     <div className="min-h-screen bg-background">
       <Toaster />
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".json"
+        onChange={handleImportJSON}
+        className="hidden"
+      />
       <div className="container mx-auto p-6 max-w-7xl">
         <header className="mb-8">
-          <h1 className="text-4xl font-bold text-primary mb-2">Decision Tree Visualizer</h1>
-          <p className="text-muted-foreground text-lg">
-            Create and visualize complex decision logic with flowchart-style diagrams
-          </p>
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1">
+              <h1 className="text-4xl font-bold text-primary mb-2">Decision Tree Visualizer</h1>
+              <p className="text-muted-foreground text-lg">
+                Create and visualize complex decision logic with flowchart-style diagrams
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => fileInputRef.current?.click()}
+                title="Import JSON"
+              >
+                <Upload />
+                Import
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleExportJSON}
+                disabled={currentPaths.length === 0}
+                title="Export as JSON"
+              >
+                <Download />
+                Export
+              </Button>
+            </div>
+          </div>
         </header>
 
         {currentPaths.length === 0 ? (
