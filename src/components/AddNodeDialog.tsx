@@ -134,21 +134,21 @@ export function AddNodeDialog({
               </SelectTrigger>
               <SelectContent>
                 {parentNodeType === 'decision' && (
-                  <SelectItem value="condition">Condition (Box)</SelectItem>
+                  <SelectItem value="condition">Condition</SelectItem>
                 )}
                 {parentNodeType === 'condition' && (
                   <>
-                    <SelectItem value="decision">Decision (Diamond)</SelectItem>
-                    <SelectItem value="outcome">Outcome (Rounded)</SelectItem>
-                    <SelectItem value="path-reference">Path Reference (Rectangle)</SelectItem>
+                    <SelectItem value="decision">Decision</SelectItem>
+                    <SelectItem value="outcome">Outcome</SelectItem>
+                    <SelectItem value="path-reference">Path Reference</SelectItem>
                   </>
                 )}
                 {!parentNodeType && mode === 'edit' && (
                   <>
-                    <SelectItem value="decision">Decision (Diamond)</SelectItem>
-                    <SelectItem value="condition">Condition (Box)</SelectItem>
-                    <SelectItem value="outcome">Outcome (Rounded)</SelectItem>
-                    <SelectItem value="path-reference">Path Reference (Rectangle)</SelectItem>
+                    <SelectItem value="decision">Decision</SelectItem>
+                    <SelectItem value="condition">Condition</SelectItem>
+                    <SelectItem value="outcome">Outcome</SelectItem>
+                    <SelectItem value="path-reference">Path Reference</SelectItem>
                   </>
                 )}
               </SelectContent>
