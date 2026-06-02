@@ -418,10 +418,32 @@ function ConditionNodeEditor({
                 <div className="ml-6 space-y-3">
                   {next.conditions.map((cond) => (
                     <div key={cond.id} className="border-l-2 border-border pl-4">
-                      <div className="mb-2">
+                      <div className="flex items-center justify-between mb-2">
                         <Badge variant="outline" className="font-mono">
                           {cond.label}
                         </Badge>
+                        <div className="flex gap-1">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              const updatedConditions = (next.conditions || []).filter(c => c.id !== cond.id)
+                              onUpdateCondition({
+                                ...condition,
+                                next: {
+                                  ...next,
+                                  conditions: updatedConditions
+                                }
+                              })
+                              toast.success('Condition deleted')
+                            }}
+                            className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                            title={cond.next ? "Cannot delete - has children" : "Delete condition"}
+                            disabled={!!cond.next}
+                          >
+                            <Trash className={cond.next ? 'opacity-30' : ''} />
+                          </Button>
+                        </div>
                       </div>
                       <ConditionNodeEditor
                         condition={cond}
