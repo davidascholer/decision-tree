@@ -424,56 +424,31 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
     ctx.lineWidth = 3
     ctx.lineCap = 'round'
 
-    const midY = (fromY + toY) / 2
-
     ctx.beginPath()
     ctx.moveTo(fromX, fromY)
-    
-    if (conn.label) {
-      const labelGap = 30
-      ctx.lineTo(fromX, midY - labelGap)
-      ctx.stroke()
-      
-      ctx.strokeStyle = 'oklch(0.55 0.10 220)'
-      ctx.beginPath()
-      ctx.moveTo(fromX, midY + labelGap)
-      ctx.lineTo(toX, midY + labelGap)
-      ctx.lineTo(toX, toY)
-      ctx.stroke()
+
+    if (conn.from.type === 'decision' && conn.to.type === 'condition') {
+      const controlPointOffset = Math.abs(toX - fromX) * 0.3
+      ctx.bezierCurveTo(
+        fromX, fromY + controlPointOffset,
+        toX, toY - controlPointOffset,
+        toX, toY
+      )
+    } else if (conn.from.type === 'condition') {
+      ctx.bezierCurveTo(
+        fromX, fromY + (toY - fromY) / 3,
+        toX, toY - (toY - fromY) / 3,
+        toX, toY
+      )
     } else {
       ctx.bezierCurveTo(
         fromX, fromY + (toY - fromY) / 3,
         toX, toY - (toY - fromY) / 3,
         toX, toY
       )
-      ctx.stroke()
     }
-
-    if (conn.label) {
-      ctx.font = '500 13px Inter, sans-serif'
-      ctx.textAlign = 'center'
-      ctx.textBaseline = 'middle'
-      
-      const metrics = ctx.measureText(conn.label)
-      const padding = 12
-      const boxWidth = metrics.width + padding * 2
-      const boxHeight = 32
-      const boxX = fromX - boxWidth / 2
-      const boxY = midY - boxHeight / 2
-
-      ctx.fillStyle = 'oklch(0.88 0.08 210)'
-      ctx.strokeStyle = 'oklch(0.60 0.12 210)'
-      ctx.lineWidth = 2
-      
-      ctx.beginPath()
-      ctx.roundRect(boxX, boxY, boxWidth, boxHeight, 16)
-      ctx.fill()
-      ctx.stroke()
-
-      ctx.fillStyle = 'oklch(0.25 0.05 210)'
-      ctx.fillText(conn.label, fromX, midY)
-    }
-
+    
+    ctx.stroke()
     ctx.restore()
   }
 
