@@ -5,7 +5,7 @@ import { Button } from './components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs'
 import { Input } from './components/ui/input'
-import { Plus, Trash, List, Tree, Download, Upload, Code, Copy, Sparkle, TextAa, ArrowCounterClockwise, ArrowClockwise, Warning, Question, DiamondsFour, CheckCircle, FlowArrow, PencilSimple, Check, X } from '@phosphor-icons/react'
+import { Plus, Trash, List, Tree, Download, Upload, Code, Copy, Sparkle, TextAa, ArrowCounterClockwise, ArrowClockwise, Warning, Question, DiamondsFour, CheckCircle, FlowArrow, PencilSimple, Check, X, CheckCircle as CheckCircleIcon, Clock } from '@phosphor-icons/react'
 import { useState, useRef, useEffect } from 'react'
 import { TreeNodeEditor } from './components/TreeNodeEditor'
 import { Flowchart } from './components/Flowchart'
@@ -53,6 +53,9 @@ function App() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const editInputRef = useRef<HTMLInputElement>(null)
   const [isInitialized, setIsInitialized] = useState(false)
+  const [lastSaved, setLastSaved] = useState<Date | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
+  const [timeDisplay, setTimeDisplay] = useState<string>('')
 
   const currentPaths = paths || []
 
@@ -82,14 +85,19 @@ function App() {
 
   useEffect(() => {
     if (isInitialized && currentPaths.length > 0) {
+      setIsSaving(true)
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(currentPaths))
+        setLastSaved(new Date())
+        setTimeout(() => setIsSaving(false), 500)
       } catch (error) {
         console.error('Failed to save to localStorage:', error)
         toast.error('Failed to save data to localStorage')
+        setIsSaving(false)
       }
     } else if (isInitialized && currentPaths.length === 0) {
       localStorage.removeItem(STORAGE_KEY)
+      setLastSaved(null)
     }
   }, [currentPaths, isInitialized])
 
@@ -128,6 +136,17 @@ function App() {
       editInputRef.current.select()
     }
   }, [editingPathId])
+
+  useEffect(() => {
+    const updateTimeDisplay = () => {
+      setTimeDisplay(getTimeAgo(lastSaved))
+    }
+    
+    updateTimeDisplay()
+    const interval = setInterval(updateTimeDisplay, 10000)
+    
+    return () => clearInterval(interval)
+  }, [lastSaved])
 
   const handleAddPath = () => {
     if (!newPathName.trim()) return
@@ -304,6 +323,25 @@ function App() {
 
   const selectedPath = selectedPathId ? currentPaths.find(p => p.id === selectedPathId) : undefined
 
+  const getTimeAgo = (date: Date | null): string => {
+    if (!date) return ''
+    
+    const now = new Date()
+    const seconds = Math.floor((now.getTime() - date.getTime()) / 1000)
+    
+    if (seconds < 10) return 'just now'
+    if (seconds < 60) return `${seconds}s ago`
+    
+    const minutes = Math.floor(seconds / 60)
+    if (minutes < 60) return `${minutes}m ago`
+    
+    const hours = Math.floor(minutes / 60)
+    if (hours < 24) return `${hours}h ago`
+    
+    const days = Math.floor(hours / 24)
+    return `${days}d ago`
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <Toaster />
@@ -376,7 +414,24 @@ function App() {
         <header className="mb-8">
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1">
-              <h1 className="text-4xl font-bold text-primary mb-2">Decision Tree Visualizer</h1>
+              <div className="flex items-center gap-3 mb-2">
+                <h1 className="text-4xl font-bold text-primary">Decision Tree Visualizer</h1>
+                {isInitialized && currentPaths.length > 0 && (
+                  <div className="flex items-center gap-2 text-sm px-3 py-1 rounded-full bg-muted border border-border">
+                    {isSaving ? (
+                      <>
+                        <Clock className="text-accent animate-pulse" size={16} />
+                        <span className="text-muted-foreground">Saving...</span>
+                      </>
+                    ) : lastSaved ? (
+                      <>
+                        <CheckCircleIcon className="text-accent" size={16} weight="fill" />
+                        <span className="text-muted-foreground">Saved {timeDisplay}</span>
+                      </>
+                    ) : null}
+                  </div>
+                )}
+              </div>
               <p className="text-muted-foreground text-lg">
                 Create and visualize complex decision logic with flowchart-style diagrams
               </p>
