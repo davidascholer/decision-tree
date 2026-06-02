@@ -1,5 +1,4 @@
 import { DecisionPath, TreeNode, DecisionNode, ConditionNode } from '@/lib/types'
-import * as d3 from 'd3'
 import { useEffect, useRef, useState } from 'react'
 import { Button } from './ui/button'
 import { Plus, Minus, ArrowsOut } from '@phosphor-icons/react'
@@ -9,31 +8,92 @@ interface FlowchartProps {
   selectedPathId?: string
 }
 
-const TURQUOISE_COLORS = {
-  decision: 'oklch(0.75 0.12 195)',
-  outcome: 'oklch(0.68 0.10 195)',
-  pathRef: 'oklch(0.82 0.14 195)',
+interface FlowNode {
+  id: string
+  type: 'decision' | 'outcome' | 'path-reference' | 'condition' | 'root'
+  label: string
+  x: number
+  y: number
+  width: number
+  height: number
+  pathId?: string
+  children: FlowNode[]
+  conditionLabel?: string
+  parent?: FlowNode
+  level: number
 }
 
-interface HierarchyNode {
-  id: string
-  type: 'decision' | 'outcome' | 'path-reference' | 'start' | 'condition'
-  label: string
-  pathId?: string
-  children?: HierarchyNode[]
-  branchLabel?: string
+interface Connection {
+  from: FlowNode
+  to: FlowNode
+  label?: string
 }
+
+const NODE_CONFIG = {
+  decision: {
+    width: 200,
+    height: 90,
+    color: 'oklch(0.72 0.15 195)',
+    borderColor: 'oklch(0.45 0.18 195)',
+    textColor: 'oklch(0.98 0 0)',
+    borderRadius: 8,
+    shadowColor: 'oklch(0.45 0.18 195 / 0.3)',
+  },
+  outcome: {
+    width: 180,
+    height: 70,
+    color: 'oklch(0.75 0.12 160)',
+    borderColor: 'oklch(0.48 0.15 160)',
+    textColor: 'oklch(0.98 0 0)',
+    borderRadius: 35,
+    shadowColor: 'oklch(0.48 0.15 160 / 0.3)',
+  },
+  'path-reference': {
+    width: 190,
+    height: 80,
+    color: 'oklch(0.68 0.18 280)',
+    borderColor: 'oklch(0.42 0.20 280)',
+    textColor: 'oklch(0.98 0 0)',
+    borderRadius: 12,
+    shadowColor: 'oklch(0.42 0.20 280 / 0.3)',
+  },
+  condition: {
+    width: 160,
+    height: 50,
+    color: 'oklch(0.88 0.08 210)',
+    borderColor: 'oklch(0.60 0.12 210)',
+    textColor: 'oklch(0.25 0.05 210)',
+    borderRadius: 25,
+    shadowColor: 'oklch(0.60 0.12 210 / 0.2)',
+  },
+  root: {
+    width: 220,
+    height: 100,
+    color: 'oklch(0.50 0.18 250)',
+    borderColor: 'oklch(0.35 0.20 250)',
+    textColor: 'oklch(0.98 0 0)',
+    borderRadius: 10,
+    shadowColor: 'oklch(0.35 0.20 250 / 0.4)',
+  }
+}
+
+const HORIZONTAL_SPACING = 100
+const VERTICAL_SPACING = 140
+const CONDITION_VERTICAL_OFFSET = 80
 
 export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
-  const svgRef = useRef<SVGSVGElement>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const [isPanning, setIsPanning] = useState(false)
   const [startPan, setStartPan] = useState({ x: 0, y: 0 })
   const [isAnimating, setIsAnimating] = useState(false)
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
-  const [collapsedNodes, setCollapsedNodes] = useState<Set<string>>(new Set())
+  const [hoveredNode, setHoveredNode] = useState<string | null>(null)
+
+  const selectedPath = selectedPathId 
+    ? paths.find(p => p.id === selectedPathId)
+    : paths[0]
 
   useEffect(() => {
     const container = containerRef.current
@@ -71,6 +131,37 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
           x: e.clientX - startPan.x,
           y: e.clientY - startPan.y
         })
+      } else {
+        const canvas = canvasRef.current
+        if (!canvas || !selectedPath) return
+        
+        const rect = canvas.getBoundingClientRect()
+        const mouseX = (e.clientX - rect.left - pan.x) / zoom
+        const mouseY = (e.clientY - rect.top - pan.y) / zoom
+        
+        const nodes = getAllNodes(selectedPath, paths)
+        let foundHover = false
+        
+        for (const node of nodes) {
+          if (
+            mouseX >= node.x - node.width / 2 &&
+            mouseX <= node.x + node.width / 2 &&
+            mouseY >= node.y - node.height / 2 &&
+            mouseY <= node.y + node.height / 2
+          ) {
+            if (hoveredNode !== node.id) {
+              setHoveredNode(node.id)
+              container.style.cursor = 'pointer'
+            }
+            foundHover = true
+            break
+          }
+        }
+        
+        if (!foundHover && hoveredNode) {
+          setHoveredNode(null)
+          container.style.cursor = 'grab'
+        }
       }
     }
 
@@ -79,435 +170,385 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
       container.style.cursor = 'grab'
     }
 
+    const handleClick = (e: MouseEvent) => {
+      if (isPanning || !selectedPath) return
+      
+      const canvas = canvasRef.current
+      if (!canvas) return
+      
+      const rect = canvas.getBoundingClientRect()
+      const mouseX = (e.clientX - rect.left - pan.x) / zoom
+      const mouseY = (e.clientY - rect.top - pan.y) / zoom
+      
+      const nodes = getAllNodes(selectedPath, paths)
+      
+      for (const node of nodes) {
+        if (
+          mouseX >= node.x - node.width / 2 &&
+          mouseX <= node.x + node.width / 2 &&
+          mouseY >= node.y - node.height / 2 &&
+          mouseY <= node.y + node.height / 2
+        ) {
+          handleNodeClick(node, e)
+          break
+        }
+      }
+    }
+
     container.addEventListener('wheel', handleWheel, { passive: false })
     container.addEventListener('mousedown', handleMouseDown)
-    window.addEventListener('mousemove', handleMouseMove)
-    window.addEventListener('mouseup', handleMouseUp)
+    container.addEventListener('mousemove', handleMouseMove)
+    container.addEventListener('mouseup', handleMouseUp)
+    container.addEventListener('click', handleClick)
 
     return () => {
       container.removeEventListener('wheel', handleWheel)
       container.removeEventListener('mousedown', handleMouseDown)
-      window.removeEventListener('mousemove', handleMouseMove)
-      window.removeEventListener('mouseup', handleMouseUp)
+      container.removeEventListener('mousemove', handleMouseMove)
+      container.removeEventListener('mouseup', handleMouseUp)
+      container.removeEventListener('click', handleClick)
     }
-  }, [zoom, pan, isPanning, startPan, isAnimating])
+  }, [zoom, pan, isPanning, startPan, isAnimating, hoveredNode, selectedPath, paths])
 
-  useEffect(() => {
-    if (!svgRef.current) return
+  const buildFlowTree = (node: TreeNode | DecisionPath, x: number, y: number, level: number, parent?: FlowNode): FlowNode => {
+    const config = NODE_CONFIG[node.type] || NODE_CONFIG.decision
     
-    const selectedPath = selectedPathId 
-      ? paths.find(p => p.id === selectedPathId)
-      : paths[0]
+    const flowNode: FlowNode = {
+      id: node.id,
+      type: node.type,
+      label: '',
+      x,
+      y,
+      width: config.width,
+      height: config.height,
+      pathId: node.type === 'path-reference' ? node.pathId : undefined,
+      children: [],
+      parent,
+      level
+    }
+
+    if (node.type === 'decision') {
+      flowNode.label = node.description
+      if (node.conditions && node.conditions.length > 0) {
+        const totalWidth = (node.conditions.length - 1) * (config.width + HORIZONTAL_SPACING)
+        const startX = x - totalWidth / 2
+
+        node.conditions.forEach((condition, index) => {
+          const childX = startX + index * (config.width + HORIZONTAL_SPACING)
+          const childY = y + config.height / 2 + CONDITION_VERTICAL_OFFSET
+          
+          const conditionNode = buildFlowTree(condition, childX, childY, level + 1, flowNode)
+          conditionNode.conditionLabel = condition.description
+          flowNode.children.push(conditionNode)
+        })
+      }
+    } else if (node.type === 'condition') {
+      flowNode.label = node.description
+      if (node.next) {
+        const nextY = y + config.height / 2 + VERTICAL_SPACING
+        const nextNode = buildFlowTree(node.next, x, nextY, level + 1, flowNode)
+        flowNode.children.push(nextNode)
+      }
+    } else if (node.type === 'outcome') {
+      flowNode.label = node.description
+    } else if (node.type === 'path-reference') {
+      const referencedPath = paths.find(p => p.id === node.pathId)
+      flowNode.label = referencedPath?.name || 'Unknown Path'
+    }
+
+    return flowNode
+  }
+
+  const getAllNodes = (path: DecisionPath | undefined, allPaths: DecisionPath[]): FlowNode[] => {
+    if (!path) return []
     
-    if (!selectedPath) return
-
-    function getPathToNode(nodeId: string, root: any): Set<string> {
-      const pathSet = new Set<string>()
-      
-      function traverse(node: any): boolean {
-        if (!node) return false
-        
-        if (node.data.id === nodeId) {
-          pathSet.add(node.data.id)
-          return true
-        }
-        
-        if (node.children) {
-          for (const child of node.children) {
-            if (traverse(child)) {
-              pathSet.add(node.data.id)
-              return true
-            }
-          }
-        }
-        
-        return false
-      }
-      
-      traverse(root)
-      return pathSet
+    const rootConfig = NODE_CONFIG.root
+    const rootNode: FlowNode = {
+      id: 'root',
+      type: 'root',
+      label: path.name,
+      x: 0,
+      y: 0,
+      width: rootConfig.width,
+      height: rootConfig.height,
+      children: [],
+      level: 0
     }
 
-    function buildHierarchy(node: TreeNode | DecisionPath): HierarchyNode {
-      const hierarchyNode: HierarchyNode = {
-        id: node.id,
-        type: node.type,
-        label: '',
-        pathId: node.type === 'path-reference' ? node.pathId : undefined,
-        children: []
-      }
+    const contentNode = buildFlowTree(
+      path, 
+      0, 
+      rootConfig.height / 2 + VERTICAL_SPACING, 
+      1,
+      rootNode
+    )
+    rootNode.children.push(contentNode)
 
-      const isCollapsed = collapsedNodes.has(node.id)
-
-      if (node.type === 'decision') {
-        hierarchyNode.label = node.description
-        if (node.conditions && node.conditions.length > 0 && !isCollapsed) {
-          hierarchyNode.children = node.conditions.map(condition => {
-            const child = buildHierarchy(condition)
-            child.branchLabel = condition.description
-            return child
-          })
-        }
-      } else if (node.type === 'condition') {
-        hierarchyNode.label = node.description
-        if (node.next && !isCollapsed) {
-          const child = buildHierarchy(node.next)
-          hierarchyNode.children = [child]
-        }
-      } else if (node.type === 'outcome') {
-        hierarchyNode.label = node.description
-      } else if (node.type === 'path-reference') {
-        const referencedPath = paths.find(p => p.id === node.pathId)
-        hierarchyNode.label = referencedPath?.name || 'Unknown Path'
-      }
-
-      return hierarchyNode
+    const allNodes: FlowNode[] = []
+    const traverse = (node: FlowNode) => {
+      allNodes.push(node)
+      node.children.forEach(traverse)
     }
+    traverse(rootNode)
 
-    const rootData: HierarchyNode = {
-      id: 'start',
-      type: 'start',
-      label: selectedPath.name,
-      children: [buildHierarchy(selectedPath)]
-    }
+    return allNodes
+  }
 
-    const svg = d3.select(svgRef.current)
-    svg.selectAll('*').remove()
-
-    const nodeWidth = 180
-    const nodeHeight = 80
-    const horizontalSpacing = 80
-    const verticalSpacing = 120
-
-    const root = d3.hierarchy(rootData)
-    const treeLayout = d3.tree<HierarchyNode>()
-      .nodeSize([nodeWidth + horizontalSpacing, nodeHeight + verticalSpacing])
-      .separation((a, b) => a.parent === b.parent ? 1 : 1.2)
-
-    treeLayout(root)
-
-    const nodes = root.descendants()
-    const links = root.links()
-
-    const highlightedPath = selectedNodeId ? getPathToNode(selectedNodeId, root) : new Set<string>()
-
-    let minX = Infinity
-    let maxX = -Infinity
-    let minY = Infinity
-    let maxY = -Infinity
+  const getAllConnections = (path: DecisionPath | undefined, allPaths: DecisionPath[]): Connection[] => {
+    const nodes = getAllNodes(path, allPaths)
+    const connections: Connection[] = []
 
     nodes.forEach(node => {
-      minX = Math.min(minX, node.x)
-      maxX = Math.max(maxX, node.x)
-      minY = Math.min(minY, node.y)
-      maxY = Math.max(maxY, node.y)
+      node.children.forEach(child => {
+        connections.push({
+          from: node,
+          to: child,
+          label: child.conditionLabel
+        })
+      })
     })
 
-    const width = maxX - minX + nodeWidth + 100
-    const height = maxY - minY + nodeHeight + 100
-    const offsetX = -minX + 50
-    const offsetY = -minY + 50
+    return connections
+  }
 
-    svg.attr('width', width).attr('height', height)
-
-    const g = svg.append('g')
-      .attr('transform', `translate(${offsetX},${offsetY})`)
-
-    const linkGroup = g.append('g')
-      .attr('fill', 'none')
-
-    const labelBoxHeight = 32
-    const labelBoxPadding = 8
-
-    linkGroup.selectAll('path')
-      .data(links)
-      .join('path')
-      .attr('d', d => {
-        const sourceY = d.source.y + nodeHeight / 2
-        const targetY = d.target.y - nodeHeight / 2
-        const midY = (sourceY + targetY) / 2
-        
-        const labelBoxTop = midY - labelBoxHeight / 2
-        const labelBoxBottom = midY + labelBoxHeight / 2
-        
-        return `M ${d.source.x},${sourceY}
-                L ${d.source.x},${labelBoxTop}
-                M ${d.source.x},${labelBoxBottom}
-                C ${d.source.x},${(labelBoxBottom + targetY) / 2}
-                  ${d.target.x},${(labelBoxBottom + targetY) / 2}
-                  ${d.target.x},${targetY}`
-      })
-      .attr('stroke', d => {
-        const isHighlighted = highlightedPath.has(d.source.data.id) && highlightedPath.has(d.target.data.id)
-        return isHighlighted ? 'oklch(0.65 0.18 210)' : 'oklch(0.45 0.15 250)'
-      })
-      .attr('stroke-width', d => {
-        const isHighlighted = highlightedPath.has(d.source.data.id) && highlightedPath.has(d.target.data.id)
-        return isHighlighted ? 3 : 2
-      })
-
-    const labelBoxes = g.append('g')
-      .selectAll('g')
-      .data(links.filter(d => d.target.data.branchLabel))
-      .join('g')
-      .attr('transform', d => {
-        const sourceY = d.source.y + nodeHeight / 2
-        const targetY = d.target.y - nodeHeight / 2
-        const midY = (sourceY + targetY) / 2
-        return `translate(${d.source.x},${midY})`
-      })
-
-    labelBoxes.each(function(d) {
-      const g = d3.select(this)
-      const label = d.target.data.branchLabel || ''
+  const handleNodeClick = (node: FlowNode, event: MouseEvent) => {
+    if (event.detail === 2) {
+      const container = containerRef.current
+      if (!container) return
       
-      const textElement = g.append('text')
-        .attr('font-size', 11)
-        .attr('font-weight', 500)
-        .attr('fill', 'oklch(0.45 0.15 250)')
-        .attr('text-anchor', 'middle')
-        .attr('dominant-baseline', 'middle')
-        .text(label)
+      setIsAnimating(true)
       
-      const bbox = (textElement.node() as SVGTextElement).getBBox()
-      const boxWidth = bbox.width + labelBoxPadding * 2
+      const rect = container.getBoundingClientRect()
+      const centerX = rect.width / 2
+      const centerY = rect.height / 2
       
-      g.insert('rect', 'text')
-        .attr('x', -boxWidth / 2)
-        .attr('y', -labelBoxHeight / 2)
-        .attr('width', boxWidth)
-        .attr('height', labelBoxHeight)
-        .attr('fill', 'oklch(0.98 0.005 250)')
-        .attr('stroke', 'oklch(0.45 0.15 250)')
-        .attr('stroke-width', 1.5)
-        .attr('rx', 4)
-    })
-
-    const nodeGroup = g.append('g')
-      .selectAll('g')
-      .data(nodes)
-      .join('g')
-      .attr('transform', d => `translate(${d.x},${d.y})`)
-      .style('cursor', 'pointer')
-      .on('click', function(event, d) {
-        event.stopPropagation()
+      const targetZoom = Math.min(zoom * 1.5, 3)
+      
+      const newPanX = centerX - node.x * targetZoom
+      const newPanY = centerY - node.y * targetZoom
+      
+      const startZoom = zoom
+      const startPanX = pan.x
+      const startPanY = pan.y
+      const duration = 500
+      const startTime = Date.now()
+      
+      const animate = () => {
+        const elapsed = Date.now() - startTime
+        const progress = Math.min(elapsed / duration, 1)
+        const eased = 1 - Math.pow(1 - progress, 3)
         
-        if (d.data.type === 'decision' || d.data.type === 'condition') {
-          setCollapsedNodes(prev => {
-            const newSet = new Set(prev)
-            if (newSet.has(d.data.id)) {
-              newSet.delete(d.data.id)
-            } else {
-              newSet.add(d.data.id)
-            }
-            return newSet
-          })
+        setZoom(startZoom + (targetZoom - startZoom) * eased)
+        setPan({
+          x: startPanX + (newPanX - startPanX) * eased,
+          y: startPanY + (newPanY - startPanY) * eased
+        })
+        
+        if (progress < 1) {
+          requestAnimationFrame(animate)
         } else {
-          setSelectedNodeId(prevId => prevId === d.data.id ? null : d.data.id)
-        }
-      })
-      .on('dblclick', function(event, d) {
-        event.stopPropagation()
-        
-        const container = containerRef.current
-        if (!container) return
-        
-        setIsAnimating(true)
-        
-        const rect = container.getBoundingClientRect()
-        const centerX = rect.width / 2
-        const centerY = rect.height / 2
-        
-        const targetZoom = Math.min(zoom * 1.5, 3)
-        
-        const newPanX = centerX - (d.x + offsetX) * targetZoom
-        const newPanY = centerY - (d.y + offsetY) * targetZoom
-        
-        const startZoom = zoom
-        const startPanX = pan.x
-        const startPanY = pan.y
-        const duration = 500
-        const startTime = Date.now()
-        
-        const animate = () => {
-          const elapsed = Date.now() - startTime
-          const progress = Math.min(elapsed / duration, 1)
-          const eased = 1 - Math.pow(1 - progress, 3)
-          
-          setZoom(startZoom + (targetZoom - startZoom) * eased)
-          setPan({
-            x: startPanX + (newPanX - startPanX) * eased,
-            y: startPanY + (newPanY - startPanY) * eased
-          })
-          
-          if (progress < 1) {
-            requestAnimationFrame(animate)
-          } else {
-            setIsAnimating(false)
-          }
-        }
-        
-        requestAnimationFrame(animate)
-      })
-
-    nodeGroup.each(function(d) {
-      const g = d3.select(this)
-      const nodeData = d.data
-      
-      const shapeWidth = 160
-      const shapeHeight = 70
-      
-      const isHighlighted = highlightedPath.has(nodeData.id)
-      const isCollapsed = collapsedNodes.has(nodeData.id)
-      
-      let borderRadius = 0
-      let fillColor = ''
-      let strokeColor = ''
-      let strokeWidth = 2
-      
-      if (nodeData.type === 'start') {
-        borderRadius = 8
-        fillColor = 'oklch(0.45 0.15 250)'
-        strokeColor = isHighlighted ? 'oklch(0.65 0.18 210)' : 'oklch(0.45 0.15 250)'
-        strokeWidth = isHighlighted ? 4 : 2
-      } else if (nodeData.type === 'decision') {
-        borderRadius = 4
-        fillColor = TURQUOISE_COLORS.decision
-        strokeColor = isHighlighted ? 'oklch(0.65 0.18 210)' : 'oklch(0.25 0.05 195)'
-        strokeWidth = isHighlighted ? 4 : 2
-      } else if (nodeData.type === 'outcome') {
-        borderRadius = 35
-        fillColor = TURQUOISE_COLORS.outcome
-        strokeColor = isHighlighted ? 'oklch(0.65 0.18 210)' : 'oklch(0.25 0.05 195)'
-        strokeWidth = isHighlighted ? 4 : 2
-      } else if (nodeData.type === 'path-reference') {
-        borderRadius = 16
-        fillColor = TURQUOISE_COLORS.pathRef
-        strokeColor = isHighlighted ? 'oklch(0.65 0.18 210)' : 'oklch(0.25 0.05 195)'
-        strokeWidth = isHighlighted ? 4 : 2
-      }
-      
-      if (nodeData.type === 'start') {
-        const radius = 50
-        g.append('circle')
-          .attr('r', radius)
-          .attr('cx', 0)
-          .attr('cy', 0)
-          .attr('fill', fillColor)
-          .attr('stroke', strokeColor)
-          .attr('stroke-width', strokeWidth)
-      } else {
-        g.append('rect')
-          .attr('width', shapeWidth)
-          .attr('height', shapeHeight)
-          .attr('x', -shapeWidth / 2)
-          .attr('y', -shapeHeight / 2)
-          .attr('fill', fillColor)
-          .attr('stroke', strokeColor)
-          .attr('stroke-width', strokeWidth)
-          .attr('rx', borderRadius)
-      }
-
-      const maxChars = 18
-      const wrappedLines = wrapText(nodeData.label, maxChars)
-      
-      const textGroup = g.append('text')
-        .attr('text-anchor', 'middle')
-        .attr('dominant-baseline', 'middle')
-        .attr('fill', nodeData.type === 'start' ? 'oklch(0.98 0 0)' : 'oklch(0.15 0 0)')
-        .attr('font-size', 11)
-        .attr('font-weight', 500)
-      
-      const lineHeight = 13
-      const totalHeight = wrappedLines.length * lineHeight
-      const startY = -(totalHeight / 2) + (lineHeight / 2)
-      
-      wrappedLines.forEach((line, i) => {
-        textGroup.append('tspan')
-          .attr('x', 0)
-          .attr('y', startY + i * lineHeight)
-          .text(line)
-      })
-      
-      if (nodeData.type === 'decision' || nodeData.type === 'condition') {
-        let originalNode: DecisionNode | ConditionNode | undefined
-        
-        function findOriginalNode(node: TreeNode | DecisionPath, targetId: string): DecisionNode | ConditionNode | undefined {
-          if (node.id === targetId && (node.type === 'decision' || node.type === 'condition')) {
-            return node as DecisionNode | ConditionNode
-          }
-          
-          if (node.type === 'decision' && node.conditions) {
-            for (const condition of node.conditions) {
-              const result = findOriginalNode(condition, targetId)
-              if (result) return result
-            }
-          } else if (node.type === 'condition' && node.next) {
-            return findOriginalNode(node.next, targetId)
-          }
-          
-          return undefined
-        }
-        
-        const selectedPath = paths.find(p => p.id === selectedPathId)
-        if (selectedPath) {
-          originalNode = findOriginalNode(selectedPath, nodeData.id)
-        }
-        
-        const hasChildren = originalNode && (
-          (originalNode.type === 'decision' && originalNode.conditions && originalNode.conditions.length > 0) ||
-          (originalNode.type === 'condition' && originalNode.next)
-        )
-        
-        if (hasChildren) {
-          const indicatorSize = 16
-          const indicatorX = shapeWidth / 2 - indicatorSize - 4
-          const indicatorY = -shapeHeight / 2 + 4
-          
-          g.append('circle')
-            .attr('cx', indicatorX + indicatorSize / 2)
-            .attr('cy', indicatorY + indicatorSize / 2)
-            .attr('r', indicatorSize / 2)
-            .attr('fill', 'oklch(0.98 0 0)')
-            .attr('stroke', 'oklch(0.25 0.05 195)')
-            .attr('stroke-width', 1.5)
-          
-          g.append('text')
-            .attr('x', indicatorX + indicatorSize / 2)
-            .attr('y', indicatorY + indicatorSize / 2)
-            .attr('text-anchor', 'middle')
-            .attr('dominant-baseline', 'middle')
-            .attr('font-size', 12)
-            .attr('font-weight', 700)
-            .attr('fill', 'oklch(0.25 0.05 195)')
-            .text(isCollapsed ? '+' : '−')
+          setIsAnimating(false)
         }
       }
-    })
-
-    function wrapText(text: string, maxChars: number): string[] {
-      if (text.length <= maxChars) return [text]
       
-      const words = text.split(' ')
-      const lines: string[] = []
-      let currentLine = ''
+      requestAnimationFrame(animate)
+    }
+  }
 
-      words.forEach(word => {
-        const testLine = currentLine ? `${currentLine} ${word}` : word
-        if (testLine.length <= maxChars) {
-          currentLine = testLine
-        } else {
-          if (currentLine) lines.push(currentLine)
-          currentLine = word
-        }
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas || !selectedPath) return
+
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    const container = containerRef.current
+    if (!container) return
+
+    const rect = container.getBoundingClientRect()
+    const dpr = window.devicePixelRatio || 1
+    
+    canvas.width = rect.width * dpr
+    canvas.height = rect.height * dpr
+    canvas.style.width = `${rect.width}px`
+    canvas.style.height = `${rect.height}px`
+    
+    ctx.scale(dpr, dpr)
+
+    const render = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      
+      ctx.save()
+      ctx.translate(pan.x, pan.y)
+      ctx.scale(zoom, zoom)
+
+      const nodes = getAllNodes(selectedPath, paths)
+      const connections = getAllConnections(selectedPath, paths)
+
+      const centerOffsetX = rect.width / (2 * zoom) - pan.x / zoom
+      const centerOffsetY = 50
+
+      connections.forEach(conn => {
+        drawConnection(ctx, conn, centerOffsetX, centerOffsetY)
       })
-      
-      if (currentLine) lines.push(currentLine)
-      
-      return lines.slice(0, 4)
+
+      nodes.forEach(node => {
+        drawNode(ctx, node, centerOffsetX, centerOffsetY)
+      })
+
+      ctx.restore()
     }
 
-  }, [paths, selectedPathId, selectedNodeId, collapsedNodes])
+    render()
+  }, [selectedPath, paths, zoom, pan, hoveredNode])
+
+  const drawConnection = (ctx: CanvasRenderingContext2D, conn: Connection, offsetX: number, offsetY: number) => {
+    const fromX = conn.from.x + offsetX
+    const fromY = conn.from.y + offsetY + conn.from.height / 2
+    const toX = conn.to.x + offsetX
+    const toY = conn.to.y + offsetY - conn.to.height / 2
+
+    ctx.save()
+    ctx.strokeStyle = 'oklch(0.55 0.10 220)'
+    ctx.lineWidth = 3
+    ctx.lineCap = 'round'
+
+    const midY = (fromY + toY) / 2
+
+    ctx.beginPath()
+    ctx.moveTo(fromX, fromY)
+    
+    if (conn.label) {
+      const labelGap = 30
+      ctx.lineTo(fromX, midY - labelGap)
+      ctx.stroke()
+      
+      ctx.strokeStyle = 'oklch(0.55 0.10 220)'
+      ctx.beginPath()
+      ctx.moveTo(fromX, midY + labelGap)
+      ctx.lineTo(toX, midY + labelGap)
+      ctx.lineTo(toX, toY)
+      ctx.stroke()
+    } else {
+      ctx.bezierCurveTo(
+        fromX, fromY + (toY - fromY) / 3,
+        toX, toY - (toY - fromY) / 3,
+        toX, toY
+      )
+      ctx.stroke()
+    }
+
+    if (conn.label) {
+      ctx.font = '500 13px Inter, sans-serif'
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      
+      const metrics = ctx.measureText(conn.label)
+      const padding = 12
+      const boxWidth = metrics.width + padding * 2
+      const boxHeight = 32
+      const boxX = fromX - boxWidth / 2
+      const boxY = midY - boxHeight / 2
+
+      ctx.fillStyle = 'oklch(0.88 0.08 210)'
+      ctx.strokeStyle = 'oklch(0.60 0.12 210)'
+      ctx.lineWidth = 2
+      
+      ctx.beginPath()
+      ctx.roundRect(boxX, boxY, boxWidth, boxHeight, 16)
+      ctx.fill()
+      ctx.stroke()
+
+      ctx.fillStyle = 'oklch(0.25 0.05 210)'
+      ctx.fillText(conn.label, fromX, midY)
+    }
+
+    ctx.restore()
+  }
+
+  const drawNode = (ctx: CanvasRenderingContext2D, node: FlowNode, offsetX: number, offsetY: number) => {
+    const x = node.x + offsetX
+    const y = node.y + offsetY
+    const config = NODE_CONFIG[node.type]
+    const isHovered = hoveredNode === node.id
+
+    ctx.save()
+
+    if (isHovered) {
+      ctx.shadowColor = config.shadowColor
+      ctx.shadowBlur = 20
+      ctx.shadowOffsetX = 0
+      ctx.shadowOffsetY = 4
+    } else {
+      ctx.shadowColor = config.shadowColor
+      ctx.shadowBlur = 10
+      ctx.shadowOffsetX = 0
+      ctx.shadowOffsetY = 2
+    }
+
+    ctx.fillStyle = config.color
+    ctx.strokeStyle = config.borderColor
+    ctx.lineWidth = isHovered ? 4 : 3
+
+    ctx.beginPath()
+    ctx.roundRect(
+      x - node.width / 2,
+      y - node.height / 2,
+      node.width,
+      node.height,
+      config.borderRadius
+    )
+    ctx.fill()
+    ctx.stroke()
+
+    ctx.shadowColor = 'transparent'
+    ctx.shadowBlur = 0
+
+    ctx.fillStyle = config.textColor
+    ctx.font = '600 14px Space Grotesk, sans-serif'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+
+    const maxWidth = node.width - 20
+    const lines = wrapText(ctx, node.label, maxWidth)
+    const lineHeight = 18
+    const totalHeight = lines.length * lineHeight
+    const startY = y - totalHeight / 2 + lineHeight / 2
+
+    lines.forEach((line, i) => {
+      ctx.fillText(line, x, startY + i * lineHeight)
+    })
+
+    if (node.type === 'path-reference') {
+      ctx.font = '500 10px Inter, sans-serif'
+      ctx.fillStyle = 'oklch(0.85 0 0)'
+      ctx.fillText('→ Path Reference', x, y + node.height / 2 - 12)
+    }
+
+    ctx.restore()
+  }
+
+  const wrapText = (ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] => {
+    const words = text.split(' ')
+    const lines: string[] = []
+    let currentLine = ''
+
+    words.forEach(word => {
+      const testLine = currentLine ? `${currentLine} ${word}` : word
+      const metrics = ctx.measureText(testLine)
+      
+      if (metrics.width <= maxWidth) {
+        currentLine = testLine
+      } else {
+        if (currentLine) lines.push(currentLine)
+        currentLine = word
+      }
+    })
+    
+    if (currentLine) lines.push(currentLine)
+    
+    return lines.slice(0, 3)
+  }
 
   const handleZoomIn = () => {
     setZoom(prev => Math.min(prev * 1.2, 5))
@@ -525,17 +566,9 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
   return (
     <div 
       ref={containerRef}
-      className="w-full h-full overflow-hidden bg-muted/20 rounded-lg border relative cursor-grab"
+      className="w-full h-full overflow-hidden bg-gradient-to-br from-background via-muted/30 to-accent/10 rounded-lg border relative cursor-grab"
     >
-      <div 
-        style={{
-          transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
-          transformOrigin: '0 0',
-          transition: isPanning || isAnimating ? 'none' : 'transform 0.1s ease-out'
-        }}
-      >
-        <svg ref={svgRef} className="min-w-full min-h-full" />
-      </div>
+      <canvas ref={canvasRef} className="w-full h-full" />
       
       <div className="absolute top-4 right-4 flex gap-2">
         <Button
