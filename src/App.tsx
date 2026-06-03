@@ -36,6 +36,13 @@ import {
   PopoverTrigger,
 } from './components/ui/popover'
 import { ScrollArea } from './components/ui/scroll-area'
+import { Textarea } from './components/ui/textarea'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from './components/ui/dropdown-menu'
 
 const STORAGE_KEY = 'decision-tree-paths'
 const HISTORY_KEY = 'decision-tree-history'
@@ -51,6 +58,8 @@ function App() {
   const [editingPathName, setEditingPathName] = useState('')
   const [exportDialogOpen, setExportDialogOpen] = useState(false)
   const [exportJSON, setExportJSON] = useState('')
+  const [importDialogOpen, setImportDialogOpen] = useState(false)
+  const [importJSON, setImportJSON] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const editInputRef = useRef<HTMLInputElement>(null)
   const [isInitialized, setIsInitialized] = useState(false)
@@ -117,9 +126,11 @@ function App() {
         const storedData = localStorage.getItem(STORAGE_KEY)
         if (storedData) {
           const parsedPaths = JSON.parse(storedData)
-          if (Array.isArray(parsedPaths) && parsedPaths.length > 0) {
+          if (Array.isArray(parsedPaths)) {
             setPaths(parsedPaths)
-            toast.success(`Loaded ${parsedPaths.length} decision tree(s) from localStorage`)
+            if (parsedPaths.length > 0) {
+              toast.success(`Loaded ${parsedPaths.length} decision tree(s) from localStorage`)
+            }
           }
         }
         
@@ -148,21 +159,22 @@ function App() {
   }, [isInitialized, setPaths])
 
   useEffect(() => {
-    if (isInitialized && currentPaths.length > 0) {
+    if (isInitialized) {
       setIsSaving(true)
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(currentPaths))
-        setLastSaved(new Date())
-        addToHistory()
+        if (currentPaths.length > 0) {
+          setLastSaved(new Date())
+          addToHistory()
+        } else {
+          setLastSaved(null)
+        }
         setTimeout(() => setIsSaving(false), 500)
       } catch (error) {
         console.error('Failed to save to localStorage:', error)
         toast.error('Failed to save data to localStorage')
         setIsSaving(false)
       }
-    } else if (isInitialized && currentPaths.length === 0) {
-      localStorage.removeItem(STORAGE_KEY)
-      setLastSaved(null)
     }
   }, [currentPaths, isInitialized])
 
@@ -328,6 +340,25 @@ function App() {
     toast.success('JSON copied to clipboard')
   }
 
+  const importPaths = (data: unknown) => {
+    if (!data || typeof data !== 'object' || !('paths' in data) || !Array.isArray(data.paths)) {
+      toast.error('Invalid JSON format: must contain a "paths" array')
+      return false
+    }
+
+    const mergedPaths = [...currentPaths, ...data.paths]
+
+    setPaths(mergedPaths)
+    pushState(mergedPaths)
+    toast.success(`Imported ${data.paths.length} decision tree(s)`)
+
+    if (!selectedPathId && data.paths.length > 0) {
+      setSelectedPathId(data.paths[0].id)
+    }
+
+    return true
+  }
+
   const handleImportJSON = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
@@ -337,19 +368,8 @@ function App() {
       try {
         const content = e.target?.result as string
         const data = JSON.parse(content)
-        
-        if (!data.paths || !Array.isArray(data.paths)) {
-          toast.error('Invalid JSON format: must contain a "paths" array')
-          return
-        }
 
-        setPaths(data.paths)
-        pushState(data.paths)
-        toast.success(`Imported ${data.paths.length} decision tree(s)`)
-        
-        if (data.paths.length > 0 && !selectedPathId) {
-          setSelectedPathId(data.paths[0].id)
-        }
+        importPaths(data)
       } catch (error) {
         toast.error('Failed to parse JSON file')
       }
@@ -358,6 +378,42 @@ function App() {
     
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
+    }
+  }
+
+  const importJSONTrimmed = importJSON.trim()
+  const parsedImportJSON = (() => {
+    if (!importJSONTrimmed) {
+      return { isValid: false, hasContent: false }
+    }
+
+    try {
+      const parsed = JSON.parse(importJSONTrimmed)
+      const hasPaths = !!parsed && typeof parsed === 'object' && 'paths' in parsed && Array.isArray(parsed.paths)
+
+      return {
+        isValid: hasPaths,
+        hasContent: true,
+      }
+    } catch {
+      return {
+        isValid: false,
+        hasContent: true,
+      }
+    }
+  })()
+
+  const handleSubmitImportJSON = () => {
+    if (!parsedImportJSON.isValid) return
+
+    try {
+      const parsed = JSON.parse(importJSONTrimmed)
+      if (importPaths(parsed)) {
+        setImportJSON('')
+        setImportDialogOpen(false)
+      }
+    } catch {
+      toast.error('Failed to parse JSON')
     }
   }
 
@@ -481,6 +537,44 @@ function App() {
             <Button onClick={handleDownloadJSON}>
               <Download />
               Download JSON
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
+        <DialogContent className="max-w-3xl max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="text-xl flex items-center gap-2">
+              <Upload className="text-primary" weight="duotone" />
+              Submit Decision Tree JSON
+            </DialogTitle>
+            <DialogDescription>
+              Paste exported JSON below. The submit button is only enabled for valid JSON containing a top-level paths array.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-hidden space-y-2">
+            <Textarea
+              value={importJSON}
+              onChange={(e) => setImportJSON(e.target.value)}
+              placeholder={'{\n  "paths": []\n}'}
+              aria-invalid={parsedImportJSON.hasContent && !parsedImportJSON.isValid}
+              className={`h-[50vh] overflow-y-auto resize-none font-mono text-sm ${parsedImportJSON.hasContent && !parsedImportJSON.isValid ? 'border-destructive focus-visible:ring-destructive/20' : ''}`}
+            />
+            {parsedImportJSON.hasContent && !parsedImportJSON.isValid && (
+              <p className="text-sm text-destructive">
+                Enter valid JSON with a top-level paths array before submitting.
+              </p>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setImportDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSubmitImportJSON} disabled={!parsedImportJSON.hasContent || !parsedImportJSON.isValid}>
+              Submit JSON
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -641,14 +735,27 @@ function App() {
                 <Sparkle />
                 Example
               </Button>
-              <Button
-                variant="outline"
-                onClick={() => fileInputRef.current?.click()}
-                title="Import JSON"
-              >
-                <Upload />
-                Import
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    title="Import JSON"
+                  >
+                    <Upload />
+                    Import
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
+                    <Upload className="mr-2" />
+                    Upload JSON
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setImportDialogOpen(true)}>
+                    <Code className="mr-2" />
+                    Submit JSON
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               <Button
                 variant="outline"
                 onClick={handleExportJSON}
