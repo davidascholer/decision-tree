@@ -5,18 +5,21 @@ export interface DecisionNode {
   type: 'decision'
   description: string
   conditions?: ConditionNode[]
+  note?: string
 }
 
 export interface OutcomeNode {
   id: string
   type: 'outcome'
   description: string
+  note?: string
 }
 
 export interface PathReferenceNode {
   id: string
   type: 'path-reference'
   pathId: string
+  note?: string
 }
 
 export interface ConditionNode {
@@ -24,12 +27,20 @@ export interface ConditionNode {
   type: 'condition'
   description: string
   next?: TreeNode
+  note?: string
 }
 
 export type TreeNode = DecisionNode | OutcomeNode | PathReferenceNode | ConditionNode
 
 export type DecisionPath = (DecisionNode | OutcomeNode | PathReferenceNode) & {
   name: string
+}
+
+export interface DecisionProject {
+  id: string
+  kind: 'project'
+  label: string
+  paths: DecisionPath[]
 }
 
 export interface DecisionTreeData {

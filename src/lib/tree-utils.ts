@@ -310,6 +310,27 @@ export function generateTextRepresentation(
   return lines.join('\n')
 }
 
+export function collectNotedNodes(root: TreeNode | DecisionPath): { id: string; note: string }[] {
+  const result: { id: string; note: string }[] = []
+
+  function traverse(n: TreeNode | DecisionPath) {
+    if ('note' in n && n.note && n.note.trim()) {
+      result.push({ id: n.id, note: n.note.trim() })
+    }
+    if (n.type === 'decision' && n.conditions) {
+      for (const condition of n.conditions) {
+        traverse(condition)
+      }
+    }
+    if (n.type === 'condition' && n.next) {
+      traverse(n.next)
+    }
+  }
+
+  traverse(root)
+  return result
+}
+
 export function findIncompleteConditions(node: TreeNode | DecisionPath): string[] {
   const incompleteIds: string[] = []
 

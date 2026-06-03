@@ -1,10 +1,10 @@
 import { TreeNode, DecisionPath } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Plus, Trash, Pencil, DiamondsFour, CheckCircle, FlowArrow, CaretDown, CaretRight, WarningCircle } from '@phosphor-icons/react'
+import { Plus, Trash, Pencil, DiamondsFour, CheckCircle, FlowArrow, CaretDown, CaretRight, WarningCircle, NotePencil } from '@phosphor-icons/react'
 import { useState, useMemo } from 'react'
 import { AddNodeDialog } from './AddNodeDialog'
-import { generateId, findIncompleteConditions } from '@/lib/tree-utils'
+import { generateId, findIncompleteConditions, collectNotedNodes } from '@/lib/tree-utils'
 import { useNodeColors } from '@/hooks/use-node-colors'
 import { toast } from 'sonner'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -32,6 +32,15 @@ export function TreeNodeEditor({
   const [conditionToEdit, setConditionToEdit] = useState<Extract<TreeNode, { type: 'condition' }> | null>(null)
   const [isExpanded, setIsExpanded] = useState(true)
   const colors = useNodeColors()
+
+  const citationMap = useMemo(() => {
+    const noted = collectNotedNodes(path)
+    const map = new Map<string, number>()
+    noted.forEach((item, i) => map.set(item.id, i + 1))
+    return map
+  }, [path])
+
+  const notedNodes = useMemo(() => collectNotedNodes(path), [path])
   
   const incompleteConditionIds = useMemo(() => {
     return new Set(findIncompleteConditions(path))
@@ -165,7 +174,12 @@ export function TreeNodeEditor({
           )}
           {getNodeIcon(path.type)}
           <div className="flex-1">
-            <div className="font-medium">{path.description}</div>
+            <div className="font-medium">
+              {path.description}
+              {citationMap.has(path.id) && (
+                <span className="ml-1.5 text-xs font-bold font-mono text-current select-none">[{citationMap.get(path.id)}]</span>
+              )}
+            </div>
             <div className="text-xs opacity-80 font-mono mt-1">ID: {path.id}</div>
           </div>
           <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
@@ -208,6 +222,9 @@ export function TreeNodeEditor({
                             className={`font-mono ${isIncomplete ? 'border-destructive text-destructive border-2 animate-pulse' : ''}`}
                           >
                             {condition.description}
+                            {citationMap.has(condition.id) && (
+                              <span className="ml-1 text-xs font-bold text-current select-none">[{citationMap.get(condition.id)}]</span>
+                            )}
                           </Badge>
                           {isIncomplete && (
                             <div className="flex items-center gap-1 text-destructive text-xs font-medium">
@@ -251,6 +268,7 @@ export function TreeNodeEditor({
                               handleUpdateCondition(condition.id, updated)
                             }
                             depth={depth + 1}
+                            citationMap={citationMap}
                           />
                         </div>
                       )}
@@ -308,6 +326,23 @@ export function TreeNodeEditor({
             initialNode={conditionToEdit}
           />
         )}
+
+        {notedNodes.length > 0 && (
+          <div className="mt-6 pt-4 border-t-2 border-border">
+            <div className="flex items-center gap-2 mb-3 text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+              <NotePencil size={15} />
+              <span>Notes</span>
+            </div>
+            <ol className="space-y-2">
+              {notedNodes.map((item, i) => (
+                <li key={item.id} className="flex gap-2.5 text-sm">
+                  <span className="shrink-0 font-bold font-mono text-current">[{i + 1}]</span>
+                  <span className="text-muted-foreground italic">{item.note}</span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        )}
       </div>
     )
   }
@@ -322,6 +357,7 @@ interface ConditionNodeEditorProps {
   onUpdateCondition: (condition: Extract<TreeNode, { type: 'condition' }>) => void
   onDeleteNode?: () => void
   depth: number
+  citationMap: Map<string, number>
 }
 
 function ConditionNodeEditor({ 
@@ -330,7 +366,8 @@ function ConditionNodeEditor({
   currentPathId,
   onUpdateCondition,
   onDeleteNode,
-  depth
+  depth,
+  citationMap
 }: ConditionNodeEditorProps) {
   const [addChildOpen, setAddChildOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
@@ -419,7 +456,12 @@ function ConditionNodeEditor({
             )}
             {getNodeIcon(next.type)}
             <div className="flex-1">
-              <div className="font-medium">{next.description}</div>
+              <div className="font-medium">
+                {next.description}
+                {citationMap.has(next.id) && (
+                  <span className="ml-1.5 text-xs font-bold font-mono text-current select-none">[{citationMap.get(next.id)}]</span>
+                )}
+              </div>
               <div className="text-xs opacity-80 font-mono mt-1">ID: {next.id}</div>
             </div>
             <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
@@ -454,6 +496,9 @@ function ConditionNodeEditor({
                       <div className="flex items-center justify-between mb-2">
                         <Badge variant="outline" className="font-mono">
                           {cond.description}
+                          {citationMap.has(cond.id) && (
+                            <span className="ml-1 text-xs font-bold text-current select-none">[{citationMap.get(cond.id)}]</span>
+                          )}
                         </Badge>
                         <div className="flex gap-1">
                           <Button
@@ -496,6 +541,7 @@ function ConditionNodeEditor({
                             })
                           }}
                           depth={depth + 1}
+                          citationMap={citationMap}
                         />
                       </div>
                     </div>
@@ -560,7 +606,12 @@ function ConditionNodeEditor({
         >
           {getNodeIcon(next.type)}
           <div className="flex-1">
-            <div className="font-medium">{getNodeLabel(next)}</div>
+            <div className="font-medium">
+              {getNodeLabel(next)}
+              {citationMap.has(next.id) && (
+                <span className="ml-1.5 text-xs font-bold font-mono text-current select-none">[{citationMap.get(next.id)}]</span>
+              )}
+            </div>
             <div className="text-xs opacity-80 font-mono mt-1">ID: {next.id}</div>
           </div>
           <div className="flex gap-1">

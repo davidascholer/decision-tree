@@ -33,6 +33,7 @@ export function AddNodeDialog({
   const [description, setDescription] = useState('')
   const [selectedPathId, setSelectedPathId] = useState('')
   const [conditionDescription, setConditionDescription] = useState('')
+  const [note, setNote] = useState('')
 
   useEffect(() => {
     if (open && initialNode) {
@@ -46,10 +47,12 @@ export function AddNodeDialog({
       } else if (initialNode.type === 'condition') {
         setConditionDescription(initialNode.description)
       }
+      setNote((initialNode as any).note || '')
     } else if (open) {
       setDescription('')
       setSelectedPathId('')
       setConditionDescription('')
+      setNote('')
       
       if (parentNodeType === 'decision') {
         setNodeType('condition')
@@ -64,12 +67,15 @@ export function AddNodeDialog({
   const handleSubmit = () => {
     let node: TreeNode
 
+    const trimmedNote = note.trim() || undefined
+
     if (nodeType === 'decision') {
       node = {
         id: initialNode?.id || generateId(),
         type: 'decision',
         description: description.trim(),
-        conditions: initialNode?.type === 'decision' ? initialNode.conditions : undefined
+        conditions: initialNode?.type === 'decision' ? initialNode.conditions : undefined,
+        note: trimmedNote
       }
     } else if (nodeType === 'condition') {
       const childNode = initialNode?.type === 'condition' ? initialNode.next : undefined
@@ -77,19 +83,22 @@ export function AddNodeDialog({
         id: initialNode?.id || generateId(),
         type: 'condition',
         description: conditionDescription.trim(),
-        next: childNode
+        next: childNode,
+        note: trimmedNote
       }
     } else if (nodeType === 'outcome') {
       node = {
         id: initialNode?.id || generateId(),
         type: 'outcome',
-        description: description.trim()
+        description: description.trim(),
+        note: trimmedNote
       }
     } else {
       node = {
         id: initialNode?.id || generateId(),
         type: 'path-reference',
-        pathId: selectedPathId
+        pathId: selectedPathId,
+        note: trimmedNote
       }
     }
 
@@ -223,6 +232,17 @@ export function AddNodeDialog({
               )}
             </div>
           )}
+
+          <div className="space-y-2">
+            <Label htmlFor="node-note">Notes <span className="text-muted-foreground font-normal">(optional)</span></Label>
+            <Textarea
+              id="node-note"
+              placeholder="Add any notes or context for this node..."
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              rows={2}
+            />
+          </div>
         </div>
 
         <DialogFooter>
