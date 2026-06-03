@@ -1,4 +1,3 @@
-import { useKV } from '@github/spark/hooks'
 import { DecisionPath, TreeNode, SaveHistoryEntry } from './lib/types'
 import { generateId, createExamplePaths, generateTextRepresentation, isPathReferencedByOthers } from './lib/tree-utils'
 import { Button } from './components/ui/button'
@@ -42,7 +41,7 @@ const STORAGE_KEY = 'decision-tree-paths'
 const HISTORY_KEY = 'decision-tree-history'
 
 function App() {
-  const [paths, setPaths] = useKV<DecisionPath[]>('decision-paths', [])
+  const [paths, setPaths] = useState<DecisionPath[]>([])
   const [selectedPathId, setSelectedPathId] = useState<string | undefined>(undefined)
   const [newPathName, setNewPathName] = useState('')
   const [showNewPathInput, setShowNewPathInput] = useState(false)

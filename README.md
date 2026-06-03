@@ -1,23 +1,29 @@
-# ✨ Welcome to Your Spark Template!
-You've just launched your brand-new Spark Template Codespace — everything’s fired up and ready for you to explore, build, and create with Spark!
+# Decision Tree Visualizer
 
-This template is your blank canvas. It comes with a minimal setup to help you get started quickly with Spark development.
+Interactive decision tree editor and visualizer built with React, TypeScript, and Vite.
 
-🚀 What's Inside?
-- A clean, minimal Spark environment
-- Pre-configured for local development
-- Ready to scale with your ideas
-  
-🧠 What Can You Do?
+## Development
 
-Right now, this is just a starting point — the perfect place to begin building and testing your Spark applications.
+Install dependencies:
 
-🧹 Just Exploring?
-No problem! If you were just checking things out and don’t need to keep this code:
+```bash
+npm install
+```
 
-- Simply delete your Spark.
-- Everything will be cleaned up — no traces left behind.
+Start the dev server:
 
-📄 License For Spark Template Resources 
+```bash
+npm run dev
+```
 
-The Spark Template files and resources from GitHub are licensed under the terms of the MIT license, Copyright GitHub, Inc.
+Build for production:
+
+```bash
+npm run build
+```
+
+Preview production build:
+
+```bash
+npm run preview
+```

@@ -1,4 +1,4 @@
-import { useKV } from '@github/spark/hooks'
+import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 import { Label } from './ui/label'
 import { Input } from './ui/input'
@@ -7,12 +7,32 @@ import { DiamondsFour, CheckCircle, FlowArrow, ArrowCounterClockwise } from '@ph
 import { toast } from 'sonner'
 import { NodeColors, DEFAULT_COLORS } from '@/lib/node-colors'
 
+const NODE_COLORS_STORAGE_KEY = 'node-colors'
+
 export function ColorSettings() {
-  const [colors, setColors] = useKV<NodeColors>('node-colors', DEFAULT_COLORS)
+  const [colors, setColors] = useState<NodeColors>(() => {
+    try {
+      const stored = localStorage.getItem(NODE_COLORS_STORAGE_KEY)
+      if (!stored) return DEFAULT_COLORS
+
+      const parsed = JSON.parse(stored) as Partial<NodeColors>
+      return { ...DEFAULT_COLORS, ...parsed }
+    } catch {
+      return DEFAULT_COLORS
+    }
+  })
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(NODE_COLORS_STORAGE_KEY, JSON.stringify(colors))
+    } catch (error) {
+      console.error('Failed to save node colors:', error)
+    }
+  }, [colors])
 
   const handleColorChange = (key: keyof NodeColors, value: string) => {
     setColors((current) => ({
-      ...(current || DEFAULT_COLORS),
+      ...current,
       [key]: value
     }))
   }
@@ -22,7 +42,7 @@ export function ColorSettings() {
     toast.success('Colors reset to defaults')
   }
 
-  const currentColors = colors || DEFAULT_COLORS
+  const currentColors = colors
 
   return (
     <Card>

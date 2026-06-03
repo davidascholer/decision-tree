@@ -86,7 +86,7 @@ const NODE_CONFIG = {
   }
 }
 
-const HORIZONTAL_SPACING = 100
+const HORIZONTAL_SPACING = 160
 const VERTICAL_SPACING = 140
 const CONDITION_VERTICAL_OFFSET = 80
 
@@ -105,6 +105,51 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
   const selectedPath = selectedPathId 
     ? paths.find(p => p.id === selectedPathId)
     : paths[0]
+
+  const resolveTreeNode = (
+    node: TreeNode | DecisionPath,
+    visitedPaths: Set<string>
+  ): { node: TreeNode | DecisionPath; visitedPaths: Set<string> } | null => {
+    if (node.type !== 'path-reference' || !expandReferences) {
+      return { node, visitedPaths }
+    }
+
+    const referencedPath = paths.find(p => p.id === node.pathId)
+    if (!referencedPath || visitedPaths.has(node.pathId)) {
+      return null
+    }
+
+    const nextVisitedPaths = new Set(visitedPaths)
+    nextVisitedPaths.add(node.pathId)
+
+    return {
+      node: referencedPath,
+      visitedPaths: nextVisitedPaths,
+    }
+  }
+
+  const measureSubtreeWidth = (
+    node: TreeNode | DecisionPath,
+    visitedPaths: Set<string> = new Set()
+  ): number => {
+    const resolved = resolveTreeNode(node, visitedPaths)
+    if (!resolved) return 0
+
+    const currentNode = resolved.node
+    const config = NODE_CONFIG[currentNode.type] || NODE_CONFIG.decision
+
+    if (currentNode.type === 'decision' && currentNode.conditions && currentNode.conditions.length > 0) {
+      const childWidths = currentNode.conditions.map(condition => measureSubtreeWidth(condition, resolved.visitedPaths))
+      const childrenWidth = childWidths.reduce((sum, width) => sum + width, 0) + (childWidths.length - 1) * HORIZONTAL_SPACING
+      return Math.max(config.width, childrenWidth)
+    }
+
+    if (currentNode.type === 'condition' && currentNode.next) {
+      return Math.max(config.width, measureSubtreeWidth(currentNode.next, resolved.visitedPaths))
+    }
+
+    return config.width
+  }
 
   useEffect(() => {
     const container = containerRef.current
@@ -226,25 +271,23 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
     }
   }, [zoom, pan, isPanning, startPan, isAnimating, hoveredNode, selectedPath, paths, expandReferences])
 
-  const buildFlowTree = (node: TreeNode | DecisionPath, x: number, y: number, level: number, parent?: FlowNode, visitedPaths: Set<string> = new Set()): FlowNode | null => {
-    if (node.type === 'path-reference' && expandReferences) {
-      const referencedPath = paths.find(p => p.id === node.pathId)
-      
-      if (referencedPath && !visitedPaths.has(node.pathId)) {
-        const newVisitedPaths = new Set(visitedPaths)
-        newVisitedPaths.add(node.pathId)
-        
-        return buildFlowTree(referencedPath, x, y, level, parent, newVisitedPaths)
-      }
-      
-      return null
-    }
-    
-    const config = NODE_CONFIG[node.type] || NODE_CONFIG.decision
+  const buildFlowTree = (
+    node: TreeNode | DecisionPath,
+    x: number,
+    y: number,
+    level: number,
+    parent?: FlowNode,
+    visitedPaths: Set<string> = new Set()
+  ): FlowNode | null => {
+    const resolved = resolveTreeNode(node, visitedPaths)
+    if (!resolved) return null
+
+    const currentNode = resolved.node
+    const config = NODE_CONFIG[currentNode.type] || NODE_CONFIG.decision
     
     const flowNode: FlowNode = {
-      id: node.id,
-      type: node.type,
+      id: currentNode.id,
+      type: currentNode.type,
       label: '',
       x,
       y,
@@ -256,35 +299,39 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
       level
     }
 
-    if (node.type === 'decision') {
-      flowNode.label = node.description
-      if (node.conditions && node.conditions.length > 0) {
-        const totalWidth = (node.conditions.length - 1) * (config.width + HORIZONTAL_SPACING)
-        const startX = x - totalWidth / 2
+    if (currentNode.type === 'decision') {
+      flowNode.label = currentNode.description
+      if (currentNode.conditions && currentNode.conditions.length > 0) {
+        const childWidths = currentNode.conditions.map(condition => measureSubtreeWidth(condition, resolved.visitedPaths))
+        const totalWidth = childWidths.reduce((sum, width) => sum + width, 0) + (childWidths.length - 1) * HORIZONTAL_SPACING
+        let currentX = x - totalWidth / 2
 
-        node.conditions.forEach((condition, index) => {
-          const childX = startX + index * (config.width + HORIZONTAL_SPACING)
+        currentNode.conditions.forEach((condition, index) => {
+          const childWidth = childWidths[index]
+          const childX = currentX + childWidth / 2
           const childY = y + config.height / 2 + CONDITION_VERTICAL_OFFSET
           
-          const conditionNode = buildFlowTree(condition, childX, childY, level + 1, flowNode, visitedPaths)
+          const conditionNode = buildFlowTree(condition, childX, childY, level + 1, flowNode, resolved.visitedPaths)
           if (conditionNode) {
             conditionNode.conditionLabel = condition.description
             flowNode.children.push(conditionNode)
           }
+
+          currentX += childWidth + HORIZONTAL_SPACING
         })
       }
-    } else if (node.type === 'condition') {
-      flowNode.label = node.description
-      if (node.next) {
+    } else if (currentNode.type === 'condition') {
+      flowNode.label = currentNode.description
+      if (currentNode.next) {
         const nextY = y + config.height / 2 + VERTICAL_SPACING
-        const nextNode = buildFlowTree(node.next, x, nextY, level + 1, flowNode, visitedPaths)
+        const nextNode = buildFlowTree(currentNode.next, x, nextY, level + 1, flowNode, resolved.visitedPaths)
         if (nextNode) {
           flowNode.children.push(nextNode)
         }
       }
-    } else if (node.type === 'outcome') {
-      flowNode.label = node.description
-    } else if (node.type === 'path-reference') {
+    } else if (currentNode.type === 'outcome') {
+      flowNode.label = currentNode.description
+    } else if (currentNode.type === 'path-reference') {
       const referencedPath = paths.find(p => p.id === node.pathId)
       flowNode.label = referencedPath?.name || 'Unknown Path'
     }
