@@ -30,3 +30,4 @@ packages
 pids
 .file-manifest
 .devcontainer/
+/private/

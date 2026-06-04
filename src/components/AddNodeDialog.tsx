@@ -1,31 +1,48 @@
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Textarea } from '@/components/ui/textarea'
-import { DecisionPath, OutcomeStatus, TreeNode } from '@/lib/types'
-import { generateId, hasCircularReference } from '@/lib/tree-utils'
-import { useState, useEffect } from 'react'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { DecisionPath, OutcomeStatus, TreeNode } from "@/lib/types";
+import { generateId, hasCircularReference } from "@/lib/tree-utils";
+import { useState, useEffect } from "react";
 
 interface AddNodeDialogProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  onAdd: (branchLabel: string, node: TreeNode, conditionDescription?: string) => void
-  paths: DecisionPath[]
-  currentPathId: string
-  mode: 'output' | 'edit'
-  initialNode?: TreeNode
-  parentNodeType?: 'decision' | 'condition' | null
-  allowTypeChange?: boolean
-  initialConditionDescription?: string
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onAdd: (
+    branchLabel: string,
+    node: TreeNode,
+    conditionDescription?: string,
+  ) => void;
+  paths: DecisionPath[];
+  currentPathId: string;
+  mode: "output" | "edit";
+  initialNode?: TreeNode;
+  parentNodeType?: "decision" | "condition" | null;
+  allowTypeChange?: boolean;
+  initialConditionDescription?: string;
 }
 
-export function AddNodeDialog({ 
-  open, 
-  onOpenChange, 
-  onAdd, 
-  paths, 
+export function AddNodeDialog({
+  open,
+  onOpenChange,
+  onAdd,
+  paths,
   currentPathId,
   mode,
   initialNode,
@@ -33,114 +50,126 @@ export function AddNodeDialog({
   allowTypeChange = false,
   initialConditionDescription,
 }: AddNodeDialogProps) {
-  const [nodeType, setNodeType] = useState<'decision' | 'outcome' | 'path-reference' | 'condition'>('condition')
-  const [description, setDescription] = useState('')
-  const [selectedPathId, setSelectedPathId] = useState('')
-  const [conditionDescription, setConditionDescription] = useState('')
-  const [incomingConditionDescription, setIncomingConditionDescription] = useState('')
-  const [note, setNote] = useState('')
-  const [outcomeType, setOutcomeType] = useState<OutcomeStatus>('neutral')
+  const [nodeType, setNodeType] = useState<
+    "decision" | "outcome" | "path-reference" | "condition"
+  >("condition");
+  const [description, setDescription] = useState("");
+  const [selectedPathId, setSelectedPathId] = useState("");
+  const [conditionDescription, setConditionDescription] = useState("");
+  const [incomingConditionDescription, setIncomingConditionDescription] =
+    useState("");
+  const [note, setNote] = useState("");
+  const [outcomeType, setOutcomeType] = useState<OutcomeStatus>("neutral");
 
   useEffect(() => {
     if (open && initialNode) {
-      setNodeType(initialNode.type)
-      if (initialNode.type === 'decision') {
-        setDescription(initialNode.description)
-      } else if (initialNode.type === 'outcome') {
-        setDescription(initialNode.description)
-        setOutcomeType(initialNode.outcomeType || 'neutral')
-      } else if (initialNode.type === 'path-reference') {
-        setSelectedPathId(initialNode.pathId)
-      } else if (initialNode.type === 'condition') {
-        setConditionDescription(initialNode.description)
+      setNodeType(initialNode.type);
+      if (initialNode.type === "decision") {
+        setDescription(initialNode.description);
+      } else if (initialNode.type === "outcome") {
+        setDescription(initialNode.description);
+        setOutcomeType(initialNode.outcomeType || "neutral");
+      } else if (initialNode.type === "path-reference") {
+        setSelectedPathId(initialNode.pathId);
+      } else if (initialNode.type === "condition") {
+        setConditionDescription(initialNode.description);
       }
-      setNote((initialNode as any).note || '')
-      setIncomingConditionDescription(initialConditionDescription || '')
+      setNote((initialNode as any).note || "");
+      setIncomingConditionDescription(initialConditionDescription || "");
     } else if (open) {
-      setDescription('')
-      setSelectedPathId('')
-      setConditionDescription('')
-      setIncomingConditionDescription(initialConditionDescription || '')
-      setNote('')
-      setOutcomeType('neutral')
-      
-      if (parentNodeType === 'decision') {
-        setNodeType('condition')
-      } else if (parentNodeType === 'condition') {
-        setNodeType('decision')
+      setDescription("");
+      setSelectedPathId("");
+      setConditionDescription("");
+      setIncomingConditionDescription(initialConditionDescription || "");
+      setNote("");
+      setOutcomeType("neutral");
+
+      if (parentNodeType === "decision") {
+        setNodeType("condition");
+      } else if (parentNodeType === "condition") {
+        setNodeType("decision");
       } else {
-        setNodeType('condition')
+        setNodeType("condition");
       }
     }
-  }, [open, initialNode, parentNodeType, initialConditionDescription])
+  }, [open, initialNode, parentNodeType, initialConditionDescription]);
 
   const handleSubmit = () => {
-    let node: TreeNode
+    let node: TreeNode;
 
-    const trimmedNote = note.trim() || undefined
+    const trimmedNote = note.trim() || undefined;
 
-    if (nodeType === 'decision') {
+    if (nodeType === "decision") {
       node = {
         id: initialNode?.id || generateId(),
-        type: 'decision',
+        type: "decision",
         description: description.trim(),
-        conditions: initialNode?.type === 'decision' ? initialNode.conditions : undefined,
-        note: trimmedNote
-      }
-    } else if (nodeType === 'condition') {
-      const childNode = initialNode?.type === 'condition' ? initialNode.next : undefined
+        conditions:
+          initialNode?.type === "decision" ? initialNode.conditions : undefined,
+        note: trimmedNote,
+      };
+    } else if (nodeType === "condition") {
+      const childNode =
+        initialNode?.type === "condition" ? initialNode.next : undefined;
       node = {
         id: initialNode?.id || generateId(),
-        type: 'condition',
+        type: "condition",
         description: conditionDescription.trim(),
         next: childNode,
-        note: trimmedNote
-      }
-    } else if (nodeType === 'outcome') {
+        note: trimmedNote,
+      };
+    } else if (nodeType === "outcome") {
       node = {
         id: initialNode?.id || generateId(),
-        type: 'outcome',
+        type: "outcome",
         description: description.trim(),
         note: trimmedNote,
-        outcomeType
-      }
+        outcomeType,
+      };
     } else {
       node = {
         id: initialNode?.id || generateId(),
-        type: 'path-reference',
+        type: "path-reference",
         pathId: selectedPathId,
-        note: trimmedNote
-      }
+        note: trimmedNote,
+      };
     }
 
-    onAdd('', node, incomingConditionDescription.trim() || undefined)
-    onOpenChange(false)
-  }
+    onAdd("", node, incomingConditionDescription.trim() || undefined);
+    onOpenChange(false);
+  };
 
   const isValid = () => {
-    if (initialConditionDescription !== undefined && !incomingConditionDescription.trim()) return false
-    if (nodeType === 'decision' && !description.trim()) return false
-    if (nodeType === 'condition' && !conditionDescription.trim()) return false
-    if (nodeType === 'outcome' && !description.trim()) return false
-    if (nodeType === 'path-reference' && !selectedPathId) return false
-    if (nodeType === 'path-reference' && hasCircularReference(paths, currentPathId, selectedPathId)) return false
-    return true
-  }
+    if (
+      initialConditionDescription !== undefined &&
+      !incomingConditionDescription.trim()
+    )
+      return false;
+    if (nodeType === "decision" && !description.trim()) return false;
+    if (nodeType === "condition" && !conditionDescription.trim()) return false;
+    if (nodeType === "outcome" && !description.trim()) return false;
+    if (nodeType === "path-reference" && !selectedPathId) return false;
+    if (
+      nodeType === "path-reference" &&
+      hasCircularReference(paths, currentPathId, selectedPathId)
+    )
+      return false;
+    return true;
+  };
 
-  const availablePaths = paths.filter(p => p.id !== currentPathId)
+  const availablePaths = paths.filter((p) => p.id !== currentPathId);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[525px]">
         <DialogHeader>
           <DialogTitle>
-            {mode === 'edit' ? 'Edit Node' : 'Add Output'}
+            {mode === "edit" ? "Edit Node" : "Add Output"}
           </DialogTitle>
           <DialogDescription>
-            {mode === 'edit' 
-              ? 'Update the node details below.'
-              : 'Add an output to this decision point.'
-            }
+            {mode === "edit"
+              ? "Update the node details below."
+              : "Add an output to this decision point."}
           </DialogDescription>
         </DialogHeader>
 
@@ -152,49 +181,61 @@ export function AddNodeDialog({
                 id="incoming-condition"
                 placeholder="Condition that leads to this node"
                 value={incomingConditionDescription}
-                onChange={(e) => setIncomingConditionDescription(e.target.value)}
+                onChange={(e) =>
+                  setIncomingConditionDescription(e.target.value)
+                }
               />
               <p className="text-xs text-muted-foreground">
-                This is the branch label that determines when this node is reached.
+                This is the branch label that determines when this node is
+                reached.
               </p>
             </div>
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="node-type">Node Type</Label>
-            <Select value={nodeType} onValueChange={(value: any) => setNodeType(value)} disabled={mode === 'edit' && !allowTypeChange}>
+            <Label htmlFor="node-type">Branch Type</Label>
+            <Select
+              value={nodeType}
+              onValueChange={(value: any) => setNodeType(value)}
+              disabled={mode === "edit" && !allowTypeChange}
+            >
               <SelectTrigger id="node-type">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {parentNodeType === 'decision' && (
+                {parentNodeType === "decision" && (
                   <SelectItem value="condition">Condition</SelectItem>
                 )}
-                {parentNodeType === 'condition' && (
+                {parentNodeType === "condition" && (
                   <>
                     <SelectItem value="decision">Decision</SelectItem>
                     <SelectItem value="outcome">Outcome</SelectItem>
-                    <SelectItem value="path-reference">Path Reference</SelectItem>
+                    <SelectItem value="path-reference">
+                      Path Reference
+                    </SelectItem>
                   </>
                 )}
-                {!parentNodeType && mode === 'edit' && (
+                {!parentNodeType && mode === "edit" && (
                   <>
                     <SelectItem value="decision">Decision</SelectItem>
                     <SelectItem value="condition">Condition</SelectItem>
                     <SelectItem value="outcome">Outcome</SelectItem>
-                    <SelectItem value="path-reference">Path Reference</SelectItem>
+                    <SelectItem value="path-reference">
+                      Path Reference
+                    </SelectItem>
                   </>
                 )}
               </SelectContent>
             </Select>
-            {mode === 'edit' && !allowTypeChange && (
+            {mode === "edit" && !allowTypeChange && (
               <p className="text-xs text-muted-foreground">
-                Node type cannot be changed after creation. Delete and recreate if needed.
+                Branch type cannot be changed after creation. Delete and
+                recreate if needed.
               </p>
             )}
           </div>
 
-          {nodeType === 'decision' && (
+          {nodeType === "decision" && (
             <div className="space-y-2">
               <Label htmlFor="description">Description</Label>
               <Textarea
@@ -207,7 +248,7 @@ export function AddNodeDialog({
             </div>
           )}
 
-          {nodeType === 'condition' && (
+          {nodeType === "condition" && (
             <div className="space-y-2">
               <Label htmlFor="output-label">Output Label</Label>
               <Input
@@ -219,7 +260,7 @@ export function AddNodeDialog({
             </div>
           )}
 
-          {nodeType === 'outcome' && (
+          {nodeType === "outcome" && (
             <>
               <div className="space-y-2">
                 <Label htmlFor="description">Outcome Description</Label>
@@ -233,7 +274,12 @@ export function AddNodeDialog({
               </div>
               <div className="space-y-2">
                 <Label htmlFor="outcome-type">Outcome Type</Label>
-                <Select value={outcomeType} onValueChange={(value: OutcomeStatus) => setOutcomeType(value)}>
+                <Select
+                  value={outcomeType}
+                  onValueChange={(value: OutcomeStatus) =>
+                    setOutcomeType(value)
+                  }
+                >
                   <SelectTrigger id="outcome-type">
                     <SelectValue />
                   </SelectTrigger>
@@ -247,7 +293,7 @@ export function AddNodeDialog({
             </>
           )}
 
-          {nodeType === 'path-reference' && (
+          {nodeType === "path-reference" && (
             <div className="space-y-2">
               <Label htmlFor="path-reference">Reference Path</Label>
               <Select value={selectedPathId} onValueChange={setSelectedPathId}>
@@ -255,28 +301,39 @@ export function AddNodeDialog({
                   <SelectValue placeholder="Select a path to reference" />
                 </SelectTrigger>
                 <SelectContent>
-                  {availablePaths.map(path => (
-                    <SelectItem 
-                      key={path.id} 
+                  {availablePaths.map((path) => (
+                    <SelectItem
+                      key={path.id}
                       value={path.id}
-                      disabled={hasCircularReference(paths, currentPathId, path.id)}
+                      disabled={hasCircularReference(
+                        paths,
+                        currentPathId,
+                        path.id,
+                      )}
                     >
                       {path.name}
-                      {hasCircularReference(paths, currentPathId, path.id) && ' (circular ref)'}
+                      {hasCircularReference(paths, currentPathId, path.id) &&
+                        " (circular ref)"}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
               {availablePaths.length === 0 && (
                 <p className="text-sm text-muted-foreground">
-                  No other paths available to reference. Create more paths first.
+                  No other paths available to reference. Create more paths
+                  first.
                 </p>
               )}
             </div>
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="node-note">Notes <span className="text-muted-foreground font-normal">(optional)</span></Label>
+            <Label htmlFor="node-note">
+              Notes{" "}
+              <span className="text-muted-foreground font-normal">
+                (optional)
+              </span>
+            </Label>
             <Textarea
               id="node-note"
               placeholder="Add any notes or context for this node..."
@@ -292,10 +349,10 @@ export function AddNodeDialog({
             Cancel
           </Button>
           <Button onClick={handleSubmit} disabled={!isValid()}>
-            {mode === 'edit' ? 'Update' : 'Add'}
+            {mode === "edit" ? "Update" : "Add"}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

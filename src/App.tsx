@@ -1,17 +1,52 @@
-import { DecisionPath, DecisionProject, TreeNode, SaveHistoryEntry } from './lib/types'
-import { generateId, createExamplePaths, generateTextRepresentation, isPathReferencedByOthers } from './lib/tree-utils'
-import { Button } from './components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs'
-import { Input } from './components/ui/input'
-import { Plus, Trash, List, Tree, Download, Upload, Code, Copy, Sparkle, TextAa, ArrowCounterClockwise, ArrowClockwise, Warning, Question, DiamondsFour, CheckCircle, FlowArrow, PencilSimple, Check, X, CheckCircle as CheckCircleIcon, Clock, ClockCounterClockwise } from '@phosphor-icons/react'
-import { useState, useRef, useEffect } from 'react'
-import { TreeNodeEditor } from './components/TreeNodeEditor'
-import { Flowchart } from './components/Flowchart'
-import { SyntaxHighlightedText } from './components/SyntaxHighlightedText'
-import { toast } from 'sonner'
-import { Toaster } from './components/ui/sonner'
-import { useUndoRedo } from './hooks/use-undo-redo'
+import {
+  DecisionPath,
+  DecisionProject,
+  TreeNode,
+  SaveHistoryEntry,
+} from "./lib/types";
+import {
+  generateId,
+  createExamplePaths,
+  generateTextRepresentation,
+  isPathReferencedByOthers,
+} from "./lib/tree-utils";
+import { Button } from "./components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "./components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/ui/tabs";
+import { Input } from "./components/ui/input";
+import {
+  Plus,
+  Trash,
+  List,
+  Tree,
+  Download,
+  Upload,
+  Code,
+  Copy,
+  Sparkle,
+  TextAa,
+  ArrowCounterClockwise,
+  ArrowClockwise,
+  Warning,
+  Question,
+  DiamondsFour,
+  CheckCircle,
+  FlowArrow,
+  PencilSimple,
+  Check,
+  X,
+  CheckCircle as CheckCircleIcon,
+  Clock,
+  ClockCounterClockwise,
+  GitBranch,
+} from "@phosphor-icons/react";
+import { useState, useRef, useEffect } from "react";
+import { TreeNodeEditor } from "./components/TreeNodeEditor";
+import { Flowchart } from "./components/Flowchart";
+import { SyntaxHighlightedText } from "./components/SyntaxHighlightedText";
+import { toast } from "sonner";
+import { Toaster } from "./components/ui/sonner";
+import { useUndoRedo } from "./hooks/use-undo-redo";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,7 +56,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from './components/ui/alert-dialog'
+} from "./components/ui/alert-dialog";
 import {
   Dialog,
   DialogContent,
@@ -29,174 +64,216 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from './components/ui/dialog'
+} from "./components/ui/dialog";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from './components/ui/popover'
-import { ScrollArea } from './components/ui/scroll-area'
-import { Textarea } from './components/ui/textarea'
+} from "./components/ui/popover";
+import { ScrollArea } from "./components/ui/scroll-area";
+import { Textarea } from "./components/ui/textarea";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from './components/ui/dropdown-menu'
+} from "./components/ui/dropdown-menu";
 
-const STORAGE_KEY = 'decision-tree-paths'
-const HISTORY_KEY = 'decision-tree-history'
+const STORAGE_KEY = "decision-tree-paths";
+const HISTORY_KEY = "decision-tree-history";
 
-type AppPage = 'projects' | 'workspace'
-type ImportScope = 'projects' | 'project'
+type AppPage = "projects" | "workspace";
+type ImportScope = "projects" | "project";
 
-const PROJECT_EXPORT_KIND = 'project'
+const PROJECT_EXPORT_KIND = "project";
 
 function App() {
-  const [projects, setProjects] = useState<DecisionProject[]>([])
-  const [selectedProjectId, setSelectedProjectId] = useState<string | undefined>(undefined)
-  const [currentPage, setCurrentPage] = useState<AppPage>('projects')
-  const [selectedPathId, setSelectedPathId] = useState<string | undefined>(undefined)
-  const [newProjectLabel, setNewProjectLabel] = useState('')
-  const [showNewProjectInput, setShowNewProjectInput] = useState(false)
-  const [editingProjectId, setEditingProjectId] = useState<string | null>(null)
-  const [editingProjectLabel, setEditingProjectLabel] = useState('')
-  const [newPathName, setNewPathName] = useState('')
-  const [showNewPathInput, setShowNewPathInput] = useState(false)
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const [pathToDelete, setPathToDelete] = useState<{ id: string; name: string } | null>(null)
-  const [editingPathId, setEditingPathId] = useState<string | null>(null)
-  const [editingPathName, setEditingPathName] = useState('')
-  const [exportDialogOpen, setExportDialogOpen] = useState(false)
-  const [exportJSON, setExportJSON] = useState('')
-  const [exportDialogTitle, setExportDialogTitle] = useState('Export Projects')
-  const [exportFileName, setExportFileName] = useState('decision-projects.json')
-  const [importDialogOpen, setImportDialogOpen] = useState(false)
-  const [importJSON, setImportJSON] = useState('')
-  const [importScope, setImportScope] = useState<ImportScope>('projects')
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const editInputRef = useRef<HTMLInputElement>(null)
-  const editProjectInputRef = useRef<HTMLInputElement>(null)
-  const [isInitialized, setIsInitialized] = useState(false)
-  const [lastSaved, setLastSaved] = useState<Date | null>(null)
-  const [isSaving, setIsSaving] = useState(false)
-  const [timeDisplay, setTimeDisplay] = useState('')
-  const [saveHistory, setSaveHistory] = useState<SaveHistoryEntry[]>([])
-  const [historyDialogOpen, setHistoryDialogOpen] = useState(false)
+  const [projects, setProjects] = useState<DecisionProject[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState<
+    string | undefined
+  >(undefined);
+  const [currentPage, setCurrentPage] = useState<AppPage>("projects");
+  const [selectedPathId, setSelectedPathId] = useState<string | undefined>(
+    undefined,
+  );
+  const [newProjectLabel, setNewProjectLabel] = useState("");
+  const [showNewProjectInput, setShowNewProjectInput] = useState(false);
+  const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
+  const [editingProjectLabel, setEditingProjectLabel] = useState("");
+  const [newPathName, setNewPathName] = useState("");
+  const [showNewPathInput, setShowNewPathInput] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [pathToDelete, setPathToDelete] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+  const [editingPathId, setEditingPathId] = useState<string | null>(null);
+  const [editingPathName, setEditingPathName] = useState("");
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const [exportJSON, setExportJSON] = useState("");
+  const [exportDialogTitle, setExportDialogTitle] = useState("Export Projects");
+  const [exportFileName, setExportFileName] = useState(
+    "decision-projects.json",
+  );
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [importJSON, setImportJSON] = useState("");
+  const [importScope, setImportScope] = useState<ImportScope>("projects");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const editInputRef = useRef<HTMLInputElement>(null);
+  const editProjectInputRef = useRef<HTMLInputElement>(null);
+  const [isInitialized, setIsInitialized] = useState(false);
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [timeDisplay, setTimeDisplay] = useState("");
+  const [saveHistory, setSaveHistory] = useState<SaveHistoryEntry[]>([]);
+  const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
 
-  const currentProjects = projects || []
+  const currentProjects = projects || [];
   const currentProject = selectedProjectId
-    ? currentProjects.find(project => project.id === selectedProjectId)
-    : undefined
-  const currentPaths = currentProject?.paths || []
+    ? currentProjects.find((project) => project.id === selectedProjectId)
+    : undefined;
+  const currentPaths = currentProject?.paths || [];
 
   const countTotalNodes = (paths: DecisionPath[]): number => {
-    let count = paths.length
+    let count = paths.length;
 
     const countNodeChildren = (node: TreeNode): number => {
-      let nodeCount = 1
-      if ('conditions' in node && node.conditions) {
-        node.conditions.forEach(condition => {
-          nodeCount += 1
+      let nodeCount = 1;
+      if ("conditions" in node && node.conditions) {
+        node.conditions.forEach((condition) => {
+          nodeCount += 1;
           if (condition.next) {
-            nodeCount += countNodeChildren(condition.next)
+            nodeCount += countNodeChildren(condition.next);
           }
-        })
+        });
       }
-      return nodeCount
-    }
+      return nodeCount;
+    };
 
-    paths.forEach(path => {
-      if ('conditions' in path && path.conditions) {
-        path.conditions.forEach(condition => {
-          count += 1
+    paths.forEach((path) => {
+      if ("conditions" in path && path.conditions) {
+        path.conditions.forEach((condition) => {
+          count += 1;
           if (condition.next) {
-            count += countNodeChildren(condition.next)
+            count += countNodeChildren(condition.next);
           }
-        })
+        });
       }
-    })
+    });
 
-    return count
-  }
+    return count;
+  };
 
   const countAllProjectPaths = (allProjects: DecisionProject[]) => {
-    return allProjects.reduce((sum, project) => sum + project.paths.length, 0)
-  }
+    return allProjects.reduce((sum, project) => sum + project.paths.length, 0);
+  };
 
   const countAllProjectNodes = (allProjects: DecisionProject[]) => {
-    return allProjects.reduce((sum, project) => sum + countTotalNodes(project.paths), 0)
-  }
+    return allProjects.reduce(
+      (sum, project) => sum + countTotalNodes(project.paths),
+      0,
+    );
+  };
 
-  const createProject = (label: string, paths: DecisionPath[] = []): DecisionProject => ({
+  const createProject = (
+    label: string,
+    paths: DecisionPath[] = [],
+  ): DecisionProject => ({
     id: generateId(),
     kind: PROJECT_EXPORT_KIND,
     label,
     paths,
-  })
+  });
 
   const serializeProject = (project: DecisionProject) => ({
     kind: PROJECT_EXPORT_KIND as const,
     label: project.label,
     paths: project.paths,
-  })
+  });
 
   const isLegacyPathArray = (value: unknown): value is DecisionPath[] => {
-    return Array.isArray(value) && value.every(item => !!item && typeof item === 'object' && 'id' in item && 'type' in item)
-  }
+    return (
+      Array.isArray(value) &&
+      value.every(
+        (item) =>
+          !!item && typeof item === "object" && "id" in item && "type" in item,
+      )
+    );
+  };
 
-  const normalizeProject = (value: unknown, fallbackLabel: string): DecisionProject | null => {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) {
-      return null
+  const normalizeProject = (
+    value: unknown,
+    fallbackLabel: string,
+  ): DecisionProject | null => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      return null;
     }
 
-    if (!('paths' in value) || !Array.isArray(value.paths)) {
-      return null
+    if (!("paths" in value) || !Array.isArray(value.paths)) {
+      return null;
     }
 
-    const label = 'label' in value && typeof value.label === 'string' && value.label.trim()
-      ? value.label.trim()
-      : fallbackLabel
+    const label =
+      "label" in value && typeof value.label === "string" && value.label.trim()
+        ? value.label.trim()
+        : fallbackLabel;
 
     return {
-      id: 'id' in value && typeof value.id === 'string' && value.id ? value.id : generateId(),
+      id:
+        "id" in value && typeof value.id === "string" && value.id
+          ? value.id
+          : generateId(),
       kind: PROJECT_EXPORT_KIND,
       label,
       paths: value.paths as DecisionPath[],
-    }
-  }
+    };
+  };
 
-  const parseImportPayload = (value: unknown, scope: ImportScope): DecisionProject[] | null => {
+  const parseImportPayload = (
+    value: unknown,
+    scope: ImportScope,
+  ): DecisionProject[] | null => {
     if (Array.isArray(value)) {
       if (value.length === 0) {
-        return null
+        return null;
       }
 
       const importedProjects = value.map((item, index) =>
-        normalizeProject(item, `Imported Project ${currentProjects.length + index + 1}`)
-      )
+        normalizeProject(
+          item,
+          `Imported Project ${currentProjects.length + index + 1}`,
+        ),
+      );
 
-      if (importedProjects.every(project => project !== null)) {
-        if (scope === 'project' && importedProjects.length !== 1) {
-          return null
+      if (importedProjects.every((project) => project !== null)) {
+        if (scope === "project" && importedProjects.length !== 1) {
+          return null;
         }
-        return importedProjects as DecisionProject[]
+        return importedProjects as DecisionProject[];
       }
 
       if (isLegacyPathArray(value)) {
-        return [createProject(`Imported Project ${currentProjects.length + 1}`, value)]
+        return [
+          createProject(
+            `Imported Project ${currentProjects.length + 1}`,
+            value,
+          ),
+        ];
       }
 
-      return null
+      return null;
     }
 
-    const singleProject = normalizeProject(value, `Imported Project ${currentProjects.length + 1}`)
+    const singleProject = normalizeProject(
+      value,
+      `Imported Project ${currentProjects.length + 1}`,
+    );
     if (!singleProject) {
-      return null
+      return null;
     }
 
-    return [singleProject]
-  }
+    return [singleProject];
+  };
 
   const addToHistory = (action?: string) => {
     const newEntry: SaveHistoryEntry = {
@@ -205,500 +282,546 @@ function App() {
       pathCount: countAllProjectPaths(currentProjects),
       totalNodes: countAllProjectNodes(currentProjects),
       action,
-    }
+    };
 
-    const updatedHistory = [newEntry, ...saveHistory].slice(0, 50)
-    setSaveHistory(updatedHistory)
+    const updatedHistory = [newEntry, ...saveHistory].slice(0, 50);
+    setSaveHistory(updatedHistory);
 
     try {
-      localStorage.setItem(HISTORY_KEY, JSON.stringify(updatedHistory))
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(updatedHistory));
     } catch (error) {
-      console.error('Failed to save history:', error)
+      console.error("Failed to save history:", error);
     }
-  }
+  };
 
-  const { canUndo, canRedo, undo, redo, pushState, reset } = useUndoRedo<DecisionProject[]>(
+  const { canUndo, canRedo, undo, redo, pushState, reset } = useUndoRedo<
+    DecisionProject[]
+  >(
     currentProjects,
     (newProjects) => {
-      setProjects(newProjects)
+      setProjects(newProjects);
     },
-    { maxHistorySize: 50 }
-  )
+    { maxHistorySize: 50 },
+  );
 
   useEffect(() => {
     const loadFromLocalStorage = () => {
       try {
-        const storedData = localStorage.getItem(STORAGE_KEY)
+        const storedData = localStorage.getItem(STORAGE_KEY);
         if (storedData) {
-          const parsedData = JSON.parse(storedData)
-          let parsedProjects: DecisionProject[] = []
+          const parsedData = JSON.parse(storedData);
+          let parsedProjects: DecisionProject[] = [];
 
           if (Array.isArray(parsedData)) {
             const importedProjects = parsedData.map((item, index) =>
-              normalizeProject(item, `Imported Project ${index + 1}`)
-            )
+              normalizeProject(item, `Imported Project ${index + 1}`),
+            );
 
-            if (importedProjects.every(project => project !== null)) {
-              parsedProjects = importedProjects as DecisionProject[]
+            if (importedProjects.every((project) => project !== null)) {
+              parsedProjects = importedProjects as DecisionProject[];
             } else if (isLegacyPathArray(parsedData)) {
-              parsedProjects = [createProject('Default Project', parsedData)]
+              parsedProjects = [createProject("Default Project", parsedData)];
             }
           }
 
-          setProjects(parsedProjects)
-          reset(parsedProjects)
+          setProjects(parsedProjects);
+          reset(parsedProjects);
           if (parsedProjects.length > 0) {
-            setSelectedProjectId(parsedProjects[0].id)
-            setSelectedPathId(parsedProjects[0].paths[0]?.id)
-            toast.success(`Loaded ${parsedProjects.length} project${parsedProjects.length === 1 ? '' : 's'} from localStorage`)
+            setSelectedProjectId(parsedProjects[0].id);
+            setSelectedPathId(parsedProjects[0].paths[0]?.id);
+            toast.success(
+              `Loaded ${parsedProjects.length} project${parsedProjects.length === 1 ? "" : "s"} from localStorage`,
+            );
           }
         }
 
-        const storedHistory = localStorage.getItem(HISTORY_KEY)
+        const storedHistory = localStorage.getItem(HISTORY_KEY);
         if (storedHistory) {
-          const parsedHistory = JSON.parse(storedHistory)
+          const parsedHistory = JSON.parse(storedHistory);
           if (Array.isArray(parsedHistory)) {
-            const historyWithDates = parsedHistory.map(entry => ({
+            const historyWithDates = parsedHistory.map((entry) => ({
               ...entry,
               timestamp: new Date(entry.timestamp),
-            }))
-            setSaveHistory(historyWithDates)
+            }));
+            setSaveHistory(historyWithDates);
           }
         }
       } catch (error) {
-        console.error('Failed to load from localStorage:', error)
-        toast.error('Failed to load saved data')
+        console.error("Failed to load from localStorage:", error);
+        toast.error("Failed to load saved data");
       } finally {
-        setIsInitialized(true)
+        setIsInitialized(true);
       }
-    }
+    };
 
     if (!isInitialized) {
-      loadFromLocalStorage()
+      loadFromLocalStorage();
     }
-  }, [isInitialized, reset])
+  }, [isInitialized, reset]);
 
   useEffect(() => {
-    if (!selectedProjectId || !currentProjects.some(project => project.id === selectedProjectId)) {
-      setSelectedProjectId(currentProjects[0]?.id)
+    if (
+      !selectedProjectId ||
+      !currentProjects.some((project) => project.id === selectedProjectId)
+    ) {
+      setSelectedProjectId(currentProjects[0]?.id);
     }
-  }, [currentProjects, selectedProjectId])
+  }, [currentProjects, selectedProjectId]);
 
   useEffect(() => {
     if (!currentProject) {
-      setSelectedPathId(undefined)
+      setSelectedPathId(undefined);
       if (currentProjects.length === 0) {
-        setCurrentPage('projects')
+        setCurrentPage("projects");
       }
-      return
+      return;
     }
 
-    if (!selectedPathId || !currentProject.paths.some(path => path.id === selectedPathId)) {
-      setSelectedPathId(currentProject.paths[0]?.id)
+    if (
+      !selectedPathId ||
+      !currentProject.paths.some((path) => path.id === selectedPathId)
+    ) {
+      setSelectedPathId(currentProject.paths[0]?.id);
     }
-  }, [currentProject, currentProjects.length, selectedPathId])
+  }, [currentProject, currentProjects.length, selectedPathId]);
 
   useEffect(() => {
     if (isInitialized) {
-      setIsSaving(true)
+      setIsSaving(true);
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(currentProjects))
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(currentProjects));
         if (currentProjects.length > 0) {
-          setLastSaved(new Date())
-          addToHistory()
+          setLastSaved(new Date());
+          addToHistory();
         } else {
-          setLastSaved(null)
+          setLastSaved(null);
         }
-        setTimeout(() => setIsSaving(false), 500)
+        setTimeout(() => setIsSaving(false), 500);
       } catch (error) {
-        console.error('Failed to save to localStorage:', error)
-        toast.error('Failed to save data to localStorage')
-        setIsSaving(false)
+        console.error("Failed to save to localStorage:", error);
+        toast.error("Failed to save data to localStorage");
+        setIsSaving(false);
       }
     }
-  }, [currentProjects, isInitialized])
+  }, [currentProjects, isInitialized]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if ((event.ctrlKey || event.metaKey) && event.key === 'z' && !event.shiftKey) {
-        event.preventDefault()
-        undo()
+      if (
+        (event.ctrlKey || event.metaKey) &&
+        event.key === "z" &&
+        !event.shiftKey
+      ) {
+        event.preventDefault();
+        undo();
         if (canUndo) {
-          toast.info('Undo')
+          toast.info("Undo");
         }
-      } else if ((event.ctrlKey || event.metaKey) && (event.key === 'y' || (event.key === 'z' && event.shiftKey))) {
-        event.preventDefault()
-        redo()
+      } else if (
+        (event.ctrlKey || event.metaKey) &&
+        (event.key === "y" || (event.key === "z" && event.shiftKey))
+      ) {
+        event.preventDefault();
+        redo();
         if (canRedo) {
-          toast.info('Redo')
+          toast.info("Redo");
         }
       }
-    }
+    };
 
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [undo, redo, canUndo, canRedo])
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [undo, redo, canUndo, canRedo]);
 
   useEffect(() => {
     if (editingPathId && editInputRef.current) {
-      editInputRef.current.focus()
-      editInputRef.current.select()
+      editInputRef.current.focus();
+      editInputRef.current.select();
     }
-  }, [editingPathId])
+  }, [editingPathId]);
 
   useEffect(() => {
     if (editingProjectId && editProjectInputRef.current) {
-      editProjectInputRef.current.focus()
-      editProjectInputRef.current.select()
+      editProjectInputRef.current.focus();
+      editProjectInputRef.current.select();
     }
-  }, [editingProjectId])
+  }, [editingProjectId]);
 
   useEffect(() => {
     const updateTimeDisplay = () => {
-      setTimeDisplay(getTimeAgo(lastSaved))
-    }
+      setTimeDisplay(getTimeAgo(lastSaved));
+    };
 
-    updateTimeDisplay()
-    const interval = setInterval(updateTimeDisplay, 10000)
+    updateTimeDisplay();
+    const interval = setInterval(updateTimeDisplay, 10000);
 
-    return () => clearInterval(interval)
-  }, [lastSaved])
+    return () => clearInterval(interval);
+  }, [lastSaved]);
 
   const updateProjectPaths = (projectId: string, nextPaths: DecisionPath[]) => {
-    const newProjects = currentProjects.map(project =>
-      project.id === projectId ? { ...project, paths: nextPaths } : project
-    )
-    setProjects(newProjects)
-    pushState(newProjects)
-  }
+    const newProjects = currentProjects.map((project) =>
+      project.id === projectId ? { ...project, paths: nextPaths } : project,
+    );
+    setProjects(newProjects);
+    pushState(newProjects);
+  };
 
   const openProject = (projectId: string) => {
-    const project = currentProjects.find(item => item.id === projectId)
-    setSelectedProjectId(projectId)
-    setSelectedPathId(project?.paths[0]?.id)
-    setCurrentPage('workspace')
-  }
+    const project = currentProjects.find((item) => item.id === projectId);
+    setSelectedProjectId(projectId);
+    setSelectedPathId(project?.paths[0]?.id);
+    setCurrentPage("workspace");
+  };
 
-  const handleStartEditProjectLabel = (projectId: string, currentLabel: string) => {
-    setEditingProjectId(projectId)
-    setEditingProjectLabel(currentLabel)
-  }
+  const handleStartEditProjectLabel = (
+    projectId: string,
+    currentLabel: string,
+  ) => {
+    setEditingProjectId(projectId);
+    setEditingProjectLabel(currentLabel);
+  };
 
   const handleSaveProjectLabel = () => {
     if (!editingProjectId || !editingProjectLabel.trim()) {
-      setEditingProjectId(null)
-      setEditingProjectLabel('')
-      return
+      setEditingProjectId(null);
+      setEditingProjectLabel("");
+      return;
     }
 
-    const newProjects = currentProjects.map(project =>
+    const newProjects = currentProjects.map((project) =>
       project.id === editingProjectId
         ? { ...project, label: editingProjectLabel.trim() }
-        : project
-    )
-    setProjects(newProjects)
-    pushState(newProjects)
-    toast.success(`Project renamed to "${editingProjectLabel.trim()}"`)
-    setEditingProjectId(null)
-    setEditingProjectLabel('')
-  }
+        : project,
+    );
+    setProjects(newProjects);
+    pushState(newProjects);
+    toast.success(`Project renamed to "${editingProjectLabel.trim()}"`);
+    setEditingProjectId(null);
+    setEditingProjectLabel("");
+  };
 
   const handleCancelEditProjectLabel = () => {
-    setEditingProjectId(null)
-    setEditingProjectLabel('')
-  }
+    setEditingProjectId(null);
+    setEditingProjectLabel("");
+  };
 
   const handleAddProject = () => {
     if (!newProjectLabel.trim()) {
-      return
+      return;
     }
 
-    const newProject = createProject(newProjectLabel.trim())
-    const newProjects = [...currentProjects, newProject]
-    setProjects(newProjects)
-    pushState(newProjects)
-    setNewProjectLabel('')
-    setShowNewProjectInput(false)
-    openProject(newProject.id)
-    toast.success(`Project "${newProject.label}" created`)
-  }
+    const newProject = createProject(newProjectLabel.trim());
+    const newProjects = [...currentProjects, newProject];
+    setProjects(newProjects);
+    pushState(newProjects);
+    setNewProjectLabel("");
+    setShowNewProjectInput(false);
+    openProject(newProject.id);
+    toast.success(`Project "${newProject.label}" created`);
+  };
 
   const handleAddPath = () => {
-    if (!currentProject || !newPathName.trim()) return
+    if (!currentProject || !newPathName.trim()) return;
 
     const newPath: DecisionPath = {
       id: generateId(),
       name: newPathName.trim(),
-      type: 'decision',
-      description: 'Start',
-    }
+      type: "decision",
+      description: "Start",
+    };
 
-    const newPaths = [...currentPaths, newPath]
-    updateProjectPaths(currentProject.id, newPaths)
-    setSelectedPathId(newPath.id)
-    setNewPathName('')
-    setShowNewPathInput(false)
-    toast.success(`Path "${newPath.name}" created`)
-  }
+    const newPaths = [...currentPaths, newPath];
+    updateProjectPaths(currentProject.id, newPaths);
+    setSelectedPathId(newPath.id);
+    setNewPathName("");
+    setShowNewPathInput(false);
+    toast.success(`Path "${newPath.name}" created`);
+  };
 
   const handleDeletePath = (pathId: string) => {
-    const path = currentPaths.find(item => item.id === pathId)
-    if (!path) return
+    const path = currentPaths.find((item) => item.id === pathId);
+    if (!path) return;
 
-    const { isReferenced, referencedBy } = isPathReferencedByOthers(pathId, currentPaths)
+    const { isReferenced, referencedBy } = isPathReferencedByOthers(
+      pathId,
+      currentPaths,
+    );
     if (isReferenced) {
       toast.error(
-        `Cannot delete "${path.name}". This path is referenced by: ${referencedBy.join(', ')}. Remove all references first.`,
-        { duration: 5000 }
-      )
-      return
+        `Cannot delete "${path.name}". This path is referenced by: ${referencedBy.join(", ")}. Remove all references first.`,
+        { duration: 5000 },
+      );
+      return;
     }
 
-    setPathToDelete({ id: pathId, name: path.name })
-    setDeleteDialogOpen(true)
-  }
+    setPathToDelete({ id: pathId, name: path.name });
+    setDeleteDialogOpen(true);
+  };
 
   const confirmDeletePath = () => {
-    if (!pathToDelete || !currentProject) return
+    if (!pathToDelete || !currentProject) return;
 
-    const newPaths = currentPaths.filter(path => path.id !== pathToDelete.id)
-    updateProjectPaths(currentProject.id, newPaths)
+    const newPaths = currentPaths.filter((path) => path.id !== pathToDelete.id);
+    updateProjectPaths(currentProject.id, newPaths);
     if (selectedPathId === pathToDelete.id) {
-      setSelectedPathId(newPaths[0]?.id)
+      setSelectedPathId(newPaths[0]?.id);
     }
-    toast.success(`Path "${pathToDelete.name}" deleted`)
-    setDeleteDialogOpen(false)
-    setPathToDelete(null)
-  }
+    toast.success(`Path "${pathToDelete.name}" deleted`);
+    setDeleteDialogOpen(false);
+    setPathToDelete(null);
+  };
 
   const cancelDeletePath = () => {
-    setDeleteDialogOpen(false)
-    setPathToDelete(null)
-  }
+    setDeleteDialogOpen(false);
+    setPathToDelete(null);
+  };
 
   const handleUpdatePath = (pathId: string, updatedPath: DecisionPath) => {
-    if (!currentProject) return
+    if (!currentProject) return;
 
-    const newPaths = currentPaths.map(path =>
-      path.id === pathId ? updatedPath : path
-    )
-    updateProjectPaths(currentProject.id, newPaths)
-  }
+    const newPaths = currentPaths.map((path) =>
+      path.id === pathId ? updatedPath : path,
+    );
+    updateProjectPaths(currentProject.id, newPaths);
+  };
 
   const handleStartEditPathName = (pathId: string, currentName: string) => {
-    setEditingPathId(pathId)
-    setEditingPathName(currentName)
-  }
+    setEditingPathId(pathId);
+    setEditingPathName(currentName);
+  };
 
   const handleSavePathName = () => {
     if (!currentProject || !editingPathId || !editingPathName.trim()) {
-      setEditingPathId(null)
-      setEditingPathName('')
-      return
+      setEditingPathId(null);
+      setEditingPathName("");
+      return;
     }
 
-    const newPaths = currentPaths.map(path =>
-      path.id === editingPathId ? { ...path, name: editingPathName.trim() } : path
-    )
+    const newPaths = currentPaths.map((path) =>
+      path.id === editingPathId
+        ? { ...path, name: editingPathName.trim() }
+        : path,
+    );
 
-    updateProjectPaths(currentProject.id, newPaths)
-    toast.success(`Path renamed to "${editingPathName.trim()}"`)
-    setEditingPathId(null)
-    setEditingPathName('')
-  }
+    updateProjectPaths(currentProject.id, newPaths);
+    toast.success(`Path renamed to "${editingPathName.trim()}"`);
+    setEditingPathId(null);
+    setEditingPathName("");
+  };
 
   const handleCancelEditPathName = () => {
-    setEditingPathId(null)
-    setEditingPathName('')
-  }
+    setEditingPathId(null);
+    setEditingPathName("");
+  };
 
-  const openExportDialog = (jsonValue: string, title: string, fileName: string) => {
-    setExportJSON(jsonValue)
-    setExportDialogTitle(title)
-    setExportFileName(fileName)
-    setExportDialogOpen(true)
-  }
+  const openExportDialog = (
+    jsonValue: string,
+    title: string,
+    fileName: string,
+  ) => {
+    setExportJSON(jsonValue);
+    setExportDialogTitle(title);
+    setExportFileName(fileName);
+    setExportDialogOpen(true);
+  };
 
   const handleExportProjectsJSON = () => {
-    const dataStr = JSON.stringify(currentProjects.map(serializeProject), null, 2)
+    const dataStr = JSON.stringify(
+      currentProjects.map(serializeProject),
+      null,
+      2,
+    );
     openExportDialog(
       dataStr,
-      'Export Projects',
-      `decision-projects-${new Date().toISOString().split('T')[0]}.json`
-    )
-  }
+      "Export Projects",
+      `decision-projects-${new Date().toISOString().split("T")[0]}.json`,
+    );
+  };
 
   const handleExportSingleProjectJSON = (project: DecisionProject) => {
-    const dataStr = JSON.stringify(serializeProject(project), null, 2)
+    const dataStr = JSON.stringify(serializeProject(project), null, 2);
     openExportDialog(
       dataStr,
       `Export ${project.label}`,
-      `${project.label.toLowerCase().replace(/\s+/g, '-')}-project.json`
-    )
-  }
+      `${project.label.toLowerCase().replace(/\s+/g, "-")}-project.json`,
+    );
+  };
 
   const handleDownloadJSON = () => {
-    const dataBlob = new Blob([exportJSON], { type: 'application/json' })
-    const url = URL.createObjectURL(dataBlob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = exportFileName
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    URL.revokeObjectURL(url)
-    toast.success('JSON downloaded')
-  }
+    const dataBlob = new Blob([exportJSON], { type: "application/json" });
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = exportFileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast.success("JSON downloaded");
+  };
 
   const handleCopyExportJSON = () => {
-    navigator.clipboard.writeText(exportJSON)
-    toast.success('JSON copied to clipboard')
-  }
+    navigator.clipboard.writeText(exportJSON);
+    toast.success("JSON copied to clipboard");
+  };
 
   const handleImportPayload = (data: unknown, scope: ImportScope) => {
-    const importedProjects = parseImportPayload(data, scope)
+    const importedProjects = parseImportPayload(data, scope);
     if (!importedProjects) {
       toast.error(
-        scope === 'projects'
-          ? 'Invalid JSON format: must be an array of project objects'
-          : 'Invalid JSON format: must be a single project object'
-      )
-      return false
+        scope === "projects"
+          ? "Invalid JSON format: must be an array of project objects"
+          : "Invalid JSON format: must be a single project object",
+      );
+      return false;
     }
 
-    const mergedProjects = [...currentProjects, ...importedProjects]
-    setProjects(mergedProjects)
-    pushState(mergedProjects)
+    const mergedProjects = [...currentProjects, ...importedProjects];
+    setProjects(mergedProjects);
+    pushState(mergedProjects);
 
     if (!selectedProjectId && importedProjects.length > 0) {
-      setSelectedProjectId(importedProjects[0].id)
-      setSelectedPathId(importedProjects[0].paths[0]?.id)
+      setSelectedProjectId(importedProjects[0].id);
+      setSelectedPathId(importedProjects[0].paths[0]?.id);
     }
 
     toast.success(
-      scope === 'projects'
-        ? `Imported ${importedProjects.length} project${importedProjects.length === 1 ? '' : 's'}`
-        : `Imported project "${importedProjects[0]?.label || 'Untitled Project'}"`
-    )
-    return true
-  }
+      scope === "projects"
+        ? `Imported ${importedProjects.length} project${importedProjects.length === 1 ? "" : "s"}`
+        : `Imported project "${importedProjects[0]?.label || "Untitled Project"}"`,
+    );
+    return true;
+  };
 
   const openFileImport = (scope: ImportScope) => {
-    setImportScope(scope)
-    fileInputRef.current?.click()
-  }
+    setImportScope(scope);
+    fileInputRef.current?.click();
+  };
 
   const handleImportJSON = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file) return
+    const file = event.target.files?.[0];
+    if (!file) return;
 
-    const scope = importScope
-    const reader = new FileReader()
+    const scope = importScope;
+    const reader = new FileReader();
     reader.onload = (loadEvent) => {
       try {
-        const content = loadEvent.target?.result as string
-        const parsed = JSON.parse(content)
-        handleImportPayload(parsed, scope)
+        const content = loadEvent.target?.result as string;
+        const parsed = JSON.parse(content);
+        handleImportPayload(parsed, scope);
       } catch {
-        toast.error('Failed to parse JSON file')
+        toast.error("Failed to parse JSON file");
       }
-    }
-    reader.readAsText(file)
+    };
+    reader.readAsText(file);
 
     if (fileInputRef.current) {
-      fileInputRef.current.value = ''
+      fileInputRef.current.value = "";
     }
-  }
+  };
 
-  const importJSONTrimmed = importJSON.trim()
+  const importJSONTrimmed = importJSON.trim();
   const parsedImportJSON = (() => {
     if (!importJSONTrimmed) {
-      return { isValid: false, hasContent: false }
+      return { isValid: false, hasContent: false };
     }
 
     try {
-      const parsed = JSON.parse(importJSONTrimmed)
+      const parsed = JSON.parse(importJSONTrimmed);
       return {
         isValid: parseImportPayload(parsed, importScope) !== null,
         hasContent: true,
-      }
+      };
     } catch {
       return {
         isValid: false,
         hasContent: true,
-      }
+      };
     }
-  })()
+  })();
 
   const handleSubmitImportJSON = () => {
-    if (!parsedImportJSON.isValid) return
+    if (!parsedImportJSON.isValid) return;
 
     try {
-      const parsed = JSON.parse(importJSONTrimmed)
+      const parsed = JSON.parse(importJSONTrimmed);
       if (handleImportPayload(parsed, importScope)) {
-        setImportJSON('')
-        setImportDialogOpen(false)
+        setImportJSON("");
+        setImportDialogOpen(false);
       }
     } catch {
-      toast.error('Failed to parse JSON')
+      toast.error("Failed to parse JSON");
     }
-  }
+  };
 
   const handleCopyJSON = () => {
-    if (!selectedPath) return
+    if (!selectedPath) return;
 
-    const jsonString = JSON.stringify(selectedPath, null, 2)
-    navigator.clipboard.writeText(jsonString)
-    toast.success('JSON copied to clipboard')
-  }
+    const jsonString = JSON.stringify(selectedPath, null, 2);
+    navigator.clipboard.writeText(jsonString);
+    toast.success("JSON copied to clipboard");
+  };
 
   const handleCopyText = () => {
-    if (!selectedPath) return
+    if (!selectedPath) return;
 
-    const textRepresentation = generateTextRepresentation(selectedPath, currentPaths)
-    navigator.clipboard.writeText(textRepresentation)
-    toast.success('Text representation copied to clipboard')
-  }
+    const textRepresentation = generateTextRepresentation(
+      selectedPath,
+      currentPaths,
+    );
+    navigator.clipboard.writeText(textRepresentation);
+    toast.success("Text representation copied to clipboard");
+  };
 
   const handleLoadExample = () => {
-    const exampleProject = createProject('Example Project', createExamplePaths())
-    const newProjects = [...currentProjects, exampleProject]
-    setProjects(newProjects)
-    pushState(newProjects)
-    setSelectedProjectId(exampleProject.id)
-    setSelectedPathId(exampleProject.paths[1]?.id || exampleProject.paths[0]?.id)
-    setCurrentPage('workspace')
-    toast.success('Example project loaded')
-  }
+    const exampleProject = createProject(
+      "Example Project",
+      createExamplePaths(),
+    );
+    const newProjects = [...currentProjects, exampleProject];
+    setProjects(newProjects);
+    pushState(newProjects);
+    setSelectedProjectId(exampleProject.id);
+    setSelectedPathId(
+      exampleProject.paths[1]?.id || exampleProject.paths[0]?.id,
+    );
+    setCurrentPage("workspace");
+    toast.success("Example project loaded");
+  };
 
-  const selectedPath = selectedPathId ? currentPaths.find(path => path.id === selectedPathId) : undefined
+  const selectedPath = selectedPathId
+    ? currentPaths.find((path) => path.id === selectedPathId)
+    : undefined;
 
   const getTimeAgo = (date: Date | null): string => {
-    if (!date) return ''
+    if (!date) return "";
 
-    const now = new Date()
-    const seconds = Math.floor((now.getTime() - date.getTime()) / 1000)
+    const now = new Date();
+    const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
 
-    if (seconds < 10) return 'just now'
-    if (seconds < 60) return `${seconds}s ago`
+    if (seconds < 10) return "just now";
+    if (seconds < 60) return `${seconds}s ago`;
 
-    const minutes = Math.floor(seconds / 60)
-    if (minutes < 60) return `${minutes}m ago`
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ago`;
 
-    const hours = Math.floor(minutes / 60)
-    if (hours < 24) return `${hours}h ago`
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
 
-    const days = Math.floor(hours / 24)
-    return `${days}d ago`
-  }
+    const days = Math.floor(hours / 24);
+    return `${days}d ago`;
+  };
 
-  const importDialogTitle = importScope === 'projects' ? 'Submit Projects JSON' : 'Submit Project JSON'
-  const importDialogDescription = importScope === 'projects'
-    ? 'Paste a JSON array of project objects below. Each project should include kind, label, and paths.'
-    : 'Paste a single project object below. It should include kind, label, and paths.'
-  const importDialogPlaceholder = importScope === 'projects'
-    ? '[\n  {\n    "kind": "project",\n    "label": "Example Project Name",\n    "paths": []\n  }\n]'
-    : '{\n  "kind": "project",\n  "label": "Example Project Name",\n  "paths": []\n}'
+  const importDialogTitle =
+    importScope === "projects" ? "Submit Projects JSON" : "Submit Project JSON";
+  const importDialogDescription =
+    importScope === "projects"
+      ? "Paste a JSON array of project objects below. Each project should include kind, label, and paths."
+      : "Paste a single project object below. It should include kind, label, and paths.";
+  const importDialogPlaceholder =
+    importScope === "projects"
+      ? '[\n  {\n    "kind": "project",\n    "label": "Example Project Name",\n    "paths": []\n  }\n]'
+      : '{\n  "kind": "project",\n  "label": "Example Project Name",\n  "paths": []\n}';
 
   return (
     <div className="min-h-screen bg-background">
@@ -716,17 +839,29 @@ function App() {
           <AlertDialogHeader>
             <div className="flex items-center gap-3 mb-2">
               <div className="p-2 rounded-full bg-destructive/10">
-                <Warning size={24} className="text-destructive" weight="duotone" />
+                <Warning
+                  size={24}
+                  className="text-destructive"
+                  weight="duotone"
+                />
               </div>
-              <AlertDialogTitle className="text-xl">Delete Decision Path?</AlertDialogTitle>
+              <AlertDialogTitle className="text-xl">
+                Delete Decision Path?
+              </AlertDialogTitle>
             </div>
             <AlertDialogDescription className="text-base">
-              Are you sure you want to delete <span className="font-semibold text-foreground">"{pathToDelete?.name}"</span>?
-              This action cannot be undone and all decision logic within this path will be permanently removed.
+              Are you sure you want to delete{" "}
+              <span className="font-semibold text-foreground">
+                "{pathToDelete?.name}"
+              </span>
+              ? This action cannot be undone and all decision logic within this
+              path will be permanently removed.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={cancelDeletePath}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel onClick={cancelDeletePath}>
+              Cancel
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={confirmDeletePath}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
@@ -745,7 +880,8 @@ function App() {
               {exportDialogTitle}
             </DialogTitle>
             <DialogDescription>
-              Copy the JSON or download it as a file to import into another instance.
+              Copy the JSON or download it as a file to import into another
+              instance.
             </DialogDescription>
           </DialogHeader>
 
@@ -775,9 +911,7 @@ function App() {
               <Upload className="text-primary" weight="duotone" />
               {importDialogTitle}
             </DialogTitle>
-            <DialogDescription>
-              {importDialogDescription}
-            </DialogDescription>
+            <DialogDescription>{importDialogDescription}</DialogDescription>
           </DialogHeader>
 
           <div className="flex-1 overflow-hidden space-y-2">
@@ -785,23 +919,33 @@ function App() {
               value={importJSON}
               onChange={(event) => setImportJSON(event.target.value)}
               placeholder={importDialogPlaceholder}
-              aria-invalid={parsedImportJSON.hasContent && !parsedImportJSON.isValid}
-              className={`h-[50vh] overflow-y-auto resize-none font-mono text-sm ${parsedImportJSON.hasContent && !parsedImportJSON.isValid ? 'border-destructive focus-visible:ring-destructive/20' : ''}`}
+              aria-invalid={
+                parsedImportJSON.hasContent && !parsedImportJSON.isValid
+              }
+              className={`h-[50vh] overflow-y-auto resize-none font-mono text-sm ${parsedImportJSON.hasContent && !parsedImportJSON.isValid ? "border-destructive focus-visible:ring-destructive/20" : ""}`}
             />
             {parsedImportJSON.hasContent && !parsedImportJSON.isValid && (
               <p className="text-sm text-destructive">
-                {importScope === 'projects'
-                  ? 'Enter valid JSON containing a project array before submitting.'
-                  : 'Enter valid JSON containing a single project object before submitting.'}
+                {importScope === "projects"
+                  ? "Enter valid JSON containing a project array before submitting."
+                  : "Enter valid JSON containing a single project object before submitting."}
               </p>
             )}
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setImportDialogOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setImportDialogOpen(false)}
+            >
               Cancel
             </Button>
-            <Button onClick={handleSubmitImportJSON} disabled={!parsedImportJSON.hasContent || !parsedImportJSON.isValid}>
+            <Button
+              onClick={handleSubmitImportJSON}
+              disabled={
+                !parsedImportJSON.hasContent || !parsedImportJSON.isValid
+              }
+            >
               Submit JSON
             </Button>
           </DialogFooter>
@@ -812,7 +956,10 @@ function App() {
         <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="text-xl flex items-center gap-2">
-              <ClockCounterClockwise className="text-primary" weight="duotone" />
+              <ClockCounterClockwise
+                className="text-primary"
+                weight="duotone"
+              />
               Save History
             </DialogTitle>
             <DialogDescription>
@@ -823,65 +970,84 @@ function App() {
           <ScrollArea className="flex-1 max-h-[500px]">
             {saveHistory.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-center">
-                <ClockCounterClockwise size={48} className="text-muted-foreground mb-3" weight="duotone" />
+                <ClockCounterClockwise
+                  size={48}
+                  className="text-muted-foreground mb-3"
+                  weight="duotone"
+                />
                 <p className="text-muted-foreground">No save history yet</p>
-                <p className="text-sm text-muted-foreground mt-1">History will appear as you make changes</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  History will appear as you make changes
+                </p>
               </div>
             ) : (
               <div className="space-y-2 pr-4">
                 {saveHistory.map((entry, index) => {
-                  const isRecent = index === 0
-                  const date = entry.timestamp
-                  const timeStr = date.toLocaleTimeString('en-US', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    second: '2-digit',
-                  })
-                  const dateStr = date.toLocaleDateString('en-US', {
-                    month: 'short',
-                    day: 'numeric',
-                    year: 'numeric',
-                  })
+                  const isRecent = index === 0;
+                  const date = entry.timestamp;
+                  const timeStr = date.toLocaleTimeString("en-US", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    second: "2-digit",
+                  });
+                  const dateStr = date.toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                  });
 
                   return (
                     <div
                       key={entry.id}
                       className={`p-4 rounded-lg border-2 ${
-                        isRecent ? 'bg-accent/10 border-accent' : 'bg-card border-border'
+                        isRecent
+                          ? "bg-accent/10 border-accent"
+                          : "bg-card border-border"
                       }`}
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
-                            <span className="font-semibold text-foreground">{timeStr}</span>
+                            <span className="font-semibold text-foreground">
+                              {timeStr}
+                            </span>
                             {isRecent && (
                               <span className="text-xs px-2 py-0.5 rounded-full bg-accent text-accent-foreground font-medium">
                                 Latest
                               </span>
                             )}
                           </div>
-                          <div className="text-sm text-muted-foreground mb-2">{dateStr}</div>
+                          <div className="text-sm text-muted-foreground mb-2">
+                            {dateStr}
+                          </div>
                           <div className="flex gap-4 text-sm">
                             <div className="flex items-center gap-1.5">
                               <Tree size={14} className="text-primary" />
                               <span className="text-muted-foreground">
-                                {entry.pathCount} {entry.pathCount === 1 ? 'path' : 'paths'}
+                                {entry.pathCount}{" "}
+                                {entry.pathCount === 1 ? "path" : "paths"}
                               </span>
                             </div>
                             <div className="flex items-center gap-1.5">
-                              <DiamondsFour size={14} className="text-primary" />
+                              <DiamondsFour
+                                size={14}
+                                className="text-primary"
+                              />
                               <span className="text-muted-foreground">
-                                {entry.totalNodes} {entry.totalNodes === 1 ? 'node' : 'nodes'}
+                                {entry.totalNodes}{" "}
+                                {entry.totalNodes === 1 ? "node" : "nodes"}
                               </span>
                             </div>
                           </div>
                           {entry.action && (
-                            <div className="mt-2 text-xs text-muted-foreground italic">{entry.action}</div>
+                            <div className="mt-2 text-xs text-muted-foreground italic">
+                              {entry.action}
+                            </div>
                           )}
                         </div>
                       </div>
                     </div>
-                  )
+                  );
                 })}
               </div>
             )}
@@ -894,19 +1060,32 @@ function App() {
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1">
               <div className="flex items-center gap-3 mb-2">
-                <h1 className="text-4xl font-bold text-primary">Decision Tree Visualizer</h1>
+                <h1 className="text-4xl font-bold text-primary">
+                  Decision Tree Visualizer
+                </h1>
                 {isInitialized && currentProjects.length > 0 && (
                   <div className="flex items-center gap-2">
                     <div className="flex items-center gap-2 text-sm px-3 py-1 rounded-full bg-muted border border-border">
                       {isSaving ? (
                         <>
-                          <Clock className="text-accent animate-pulse" size={16} />
-                          <span className="text-muted-foreground">Saving...</span>
+                          <Clock
+                            className="text-accent animate-pulse"
+                            size={16}
+                          />
+                          <span className="text-muted-foreground">
+                            Saving...
+                          </span>
                         </>
                       ) : lastSaved ? (
                         <>
-                          <CheckCircleIcon className="text-accent" size={16} weight="fill" />
-                          <span className="text-muted-foreground">Saved {timeDisplay}</span>
+                          <CheckCircleIcon
+                            className="text-accent"
+                            size={16}
+                            weight="fill"
+                          />
+                          <span className="text-muted-foreground">
+                            Saved {timeDisplay}
+                          </span>
                         </>
                       ) : null}
                     </div>
@@ -923,9 +1102,9 @@ function App() {
                 )}
               </div>
               <p className="text-muted-foreground text-lg">
-                {currentProject && currentPage === 'workspace'
+                {currentProject && currentPage === "workspace"
                   ? `Editing project: ${currentProject.label}`
-                  : 'Create and visualize complex decision logic with flowchart-style diagrams'}
+                  : "Create and visualize complex decision logic with flowchart-style diagrams"}
               </p>
             </div>
             <div className="flex gap-2 flex-wrap justify-end">
@@ -950,8 +1129,8 @@ function App() {
                 </Button>
               </div>
               <Button
-                variant={currentPage === 'projects' ? 'default' : 'outline'}
-                onClick={() => setCurrentPage('projects')}
+                variant={currentPage === "projects" ? "default" : "outline"}
+                onClick={() => setCurrentPage("projects")}
                 title="View Projects"
               >
                 <List />
@@ -959,8 +1138,8 @@ function App() {
               </Button>
               {currentProject && (
                 <Button
-                  variant={currentPage === 'workspace' ? 'default' : 'outline'}
-                  onClick={() => setCurrentPage('workspace')}
+                  variant={currentPage === "workspace" ? "default" : "outline"}
+                  onClick={() => setCurrentPage("workspace")}
                 >
                   <Tree />
                   Workspace
@@ -982,14 +1161,16 @@ function App() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => openFileImport('projects')}>
+                  <DropdownMenuItem onClick={() => openFileImport("projects")}>
                     <Upload className="mr-2" />
                     Upload Projects JSON
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => {
-                    setImportScope('projects')
-                    setImportDialogOpen(true)
-                  }}>
+                  <DropdownMenuItem
+                    onClick={() => {
+                      setImportScope("projects");
+                      setImportDialogOpen(true);
+                    }}
+                  >
                     <Code className="mr-2" />
                     Submit Projects JSON
                   </DropdownMenuItem>
@@ -1008,7 +1189,7 @@ function App() {
           </div>
         </header>
 
-        {currentPage === 'projects' ? (
+        {currentPage === "projects" ? (
           <div className="space-y-6">
             <Card>
               <CardHeader>
@@ -1023,20 +1204,30 @@ function App() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => openFileImport('project')}>
+                        <DropdownMenuItem
+                          onClick={() => openFileImport("project")}
+                        >
                           <Upload className="mr-2" />
                           Upload Project JSON
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => {
-                          setImportScope('project')
-                          setImportDialogOpen(true)
-                        }}>
+                        <DropdownMenuItem
+                          onClick={() => {
+                            setImportScope("project");
+                            setImportDialogOpen(true);
+                          }}
+                        >
                           <Code className="mr-2" />
                           Submit Project JSON
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
-                    <Button size="sm" variant="ghost" onClick={() => setShowNewProjectInput(!showNewProjectInput)}>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() =>
+                        setShowNewProjectInput(!showNewProjectInput)
+                      }
+                    >
                       <Plus />
                     </Button>
                   </div>
@@ -1048,11 +1239,18 @@ function App() {
                     <Input
                       placeholder="Project name..."
                       value={newProjectLabel}
-                      onChange={(event) => setNewProjectLabel(event.target.value)}
-                      onKeyDown={(event) => event.key === 'Enter' && handleAddProject()}
+                      onChange={(event) =>
+                        setNewProjectLabel(event.target.value)
+                      }
+                      onKeyDown={(event) =>
+                        event.key === "Enter" && handleAddProject()
+                      }
                       autoFocus
                     />
-                    <Button onClick={handleAddProject} disabled={!newProjectLabel.trim()}>
+                    <Button
+                      onClick={handleAddProject}
+                      disabled={!newProjectLabel.trim()}
+                    >
                       <Plus />
                       Create Project
                     </Button>
@@ -1061,20 +1259,34 @@ function App() {
 
                 {currentProjects.length === 0 ? (
                   <div className="border-2 border-dashed rounded-lg px-6 py-14 text-center">
-                    <Tree size={52} className="mx-auto mb-4 text-muted-foreground" weight="duotone" />
-                    <h3 className="text-xl font-semibold mb-2">No Projects Yet</h3>
+                    <Tree
+                      size={52}
+                      className="mx-auto mb-4 text-muted-foreground"
+                      weight="duotone"
+                    />
+                    <h3 className="text-xl font-semibold mb-2">
+                      No Projects Yet
+                    </h3>
                     <p className="text-muted-foreground mb-6">
-                      Create your first project or import an existing project JSON file.
+                      Create your first project or import an existing project
+                      JSON file.
                     </p>
                     <div className="flex gap-3 items-center justify-center">
                       <Input
                         placeholder="Enter project name..."
                         value={newProjectLabel}
-                        onChange={(event) => setNewProjectLabel(event.target.value)}
-                        onKeyDown={(event) => event.key === 'Enter' && handleAddProject()}
+                        onChange={(event) =>
+                          setNewProjectLabel(event.target.value)
+                        }
+                        onKeyDown={(event) =>
+                          event.key === "Enter" && handleAddProject()
+                        }
                         className="w-72"
                       />
-                      <Button onClick={handleAddProject} disabled={!newProjectLabel.trim()}>
+                      <Button
+                        onClick={handleAddProject}
+                        disabled={!newProjectLabel.trim()}
+                      >
                         <Plus />
                         Create Project
                       </Button>
@@ -1082,8 +1294,11 @@ function App() {
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {currentProjects.map(project => (
-                      <Card key={project.id} className={`border-2 ${selectedProjectId === project.id ? 'border-primary bg-primary/5' : ''}`}>
+                    {currentProjects.map((project) => (
+                      <Card
+                        key={project.id}
+                        className={`border-2 ${selectedProjectId === project.id ? "border-primary bg-primary/5" : ""}`}
+                      >
                         <CardHeader>
                           <div className="flex items-start justify-between gap-4">
                             <div>
@@ -1092,12 +1307,14 @@ function App() {
                                   <Input
                                     ref={editProjectInputRef}
                                     value={editingProjectLabel}
-                                    onChange={(event) => setEditingProjectLabel(event.target.value)}
+                                    onChange={(event) =>
+                                      setEditingProjectLabel(event.target.value)
+                                    }
                                     onKeyDown={(event) => {
-                                      if (event.key === 'Enter') {
-                                        handleSaveProjectLabel()
-                                      } else if (event.key === 'Escape') {
-                                        handleCancelEditProjectLabel()
+                                      if (event.key === "Enter") {
+                                        handleSaveProjectLabel();
+                                      } else if (event.key === "Escape") {
+                                        handleCancelEditProjectLabel();
                                       }
                                     }}
                                     className="h-9 text-sm"
@@ -1121,11 +1338,18 @@ function App() {
                                 </div>
                               ) : (
                                 <div className="flex items-center gap-2">
-                                  <CardTitle className="text-lg">{project.label}</CardTitle>
+                                  <CardTitle className="text-lg">
+                                    {project.label}
+                                  </CardTitle>
                                   <Button
                                     size="sm"
                                     variant="ghost"
-                                    onClick={() => handleStartEditProjectLabel(project.id, project.label)}
+                                    onClick={() =>
+                                      handleStartEditProjectLabel(
+                                        project.id,
+                                        project.label,
+                                      )
+                                    }
                                     className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
                                     title="Rename project"
                                   >
@@ -1134,10 +1358,18 @@ function App() {
                                 </div>
                               )}
                               <p className="text-sm text-muted-foreground mt-1">
-                                {project.paths.length} {project.paths.length === 1 ? 'path' : 'paths'}
+                                {project.paths.length}{" "}
+                                {project.paths.length === 1 ? "path" : "paths"}
                               </p>
                             </div>
-                            <Button variant="outline" size="sm" onClick={() => handleExportSingleProjectJSON(project)} disabled={editingProjectId === project.id}>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                handleExportSingleProjectJSON(project)
+                              }
+                              disabled={editingProjectId === project.id}
+                            >
                               <Download />
                               Export Project
                             </Button>
@@ -1145,9 +1377,15 @@ function App() {
                         </CardHeader>
                         <CardContent className="flex items-center justify-between gap-4">
                           <div className="text-sm text-muted-foreground">
-                            {countTotalNodes(project.paths)} total {countTotalNodes(project.paths) === 1 ? 'node' : 'nodes'}
+                            {countTotalNodes(project.paths)} total{" "}
+                            {countTotalNodes(project.paths) === 1
+                              ? "node"
+                              : "nodes"}
                           </div>
-                          <Button onClick={() => openProject(project.id)} disabled={editingProjectId === project.id}>
+                          <Button
+                            onClick={() => openProject(project.id)}
+                            disabled={editingProjectId === project.id}
+                          >
                             <Tree />
                             Open Project
                           </Button>
@@ -1163,9 +1401,13 @@ function App() {
           <Card className="border-2 border-dashed">
             <CardContent className="flex flex-col items-center justify-center py-16">
               <List size={48} className="text-muted-foreground mb-4" />
-              <h3 className="text-xl font-semibold mb-2">No Project Selected</h3>
-              <p className="text-muted-foreground mb-4">Choose a project from the projects page to start editing.</p>
-              <Button onClick={() => setCurrentPage('projects')}>
+              <h3 className="text-xl font-semibold mb-2">
+                No Project Selected
+              </h3>
+              <p className="text-muted-foreground mb-4">
+                Choose a project from the projects page to start editing.
+              </p>
+              <Button onClick={() => setCurrentPage("projects")}>
                 <List />
                 Go to Projects
               </Button>
@@ -1175,10 +1417,17 @@ function App() {
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-2xl font-semibold">{currentProject.label}</h2>
-                <p className="text-muted-foreground">This project does not have any decision paths yet.</p>
+                <h2 className="text-2xl font-semibold">
+                  {currentProject.label}
+                </h2>
+                <p className="text-muted-foreground">
+                  This project does not have any decision paths yet.
+                </p>
               </div>
-              <Button variant="outline" onClick={() => setCurrentPage('projects')}>
+              <Button
+                variant="outline"
+                onClick={() => setCurrentPage("projects")}
+              >
                 <List />
                 Back to Projects
               </Button>
@@ -1186,20 +1435,32 @@ function App() {
 
             <Card className="border-2 border-dashed">
               <CardContent className="flex flex-col items-center justify-center py-16">
-                <Tree size={64} className="text-muted-foreground mb-4" weight="duotone" />
-                <h3 className="text-xl font-semibold mb-2">No Decision Paths Yet</h3>
+                <Tree
+                  size={64}
+                  className="text-muted-foreground mb-4"
+                  weight="duotone"
+                />
+                <h3 className="text-xl font-semibold mb-2">
+                  No Decision Paths Yet
+                </h3>
                 <p className="text-muted-foreground mb-6 text-center max-w-md">
-                  Create your first decision path to start building your logic tree for this project.
+                  Create your first decision path to start building your logic
+                  tree for this project.
                 </p>
                 <div className="flex gap-3 items-center">
                   <Input
                     placeholder="Enter path name..."
                     value={newPathName}
                     onChange={(event) => setNewPathName(event.target.value)}
-                    onKeyDown={(event) => event.key === 'Enter' && handleAddPath()}
+                    onKeyDown={(event) =>
+                      event.key === "Enter" && handleAddPath()
+                    }
                     className="w-64"
                   />
-                  <Button onClick={handleAddPath} disabled={!newPathName.trim()}>
+                  <Button
+                    onClick={handleAddPath}
+                    disabled={!newPathName.trim()}
+                  >
                     <Plus />
                     Create Path
                   </Button>
@@ -1211,12 +1472,19 @@ function App() {
           <div className="space-y-6">
             <div className="flex items-center justify-between gap-4">
               <div>
-                <h2 className="text-2xl font-semibold">{currentProject.label}</h2>
+                <h2 className="text-2xl font-semibold">
+                  {currentProject.label}
+                </h2>
                 <p className="text-muted-foreground">
-                  {currentPaths.length} {currentPaths.length === 1 ? 'path' : 'paths'} in this project.
+                  {currentPaths.length}{" "}
+                  {currentPaths.length === 1 ? "path" : "paths"} in this
+                  project.
                 </p>
               </div>
-              <Button variant="outline" onClick={() => setCurrentPage('projects')}>
+              <Button
+                variant="outline"
+                onClick={() => setCurrentPage("projects")}
+              >
                 <List />
                 Back to Projects
               </Button>
@@ -1243,25 +1511,36 @@ function App() {
                         <Input
                           placeholder="Path name..."
                           value={newPathName}
-                          onChange={(event) => setNewPathName(event.target.value)}
-                          onKeyDown={(event) => event.key === 'Enter' && handleAddPath()}
+                          onChange={(event) =>
+                            setNewPathName(event.target.value)
+                          }
+                          onKeyDown={(event) =>
+                            event.key === "Enter" && handleAddPath()
+                          }
                           autoFocus
                         />
-                        <Button size="sm" onClick={handleAddPath} disabled={!newPathName.trim()}>
+                        <Button
+                          size="sm"
+                          onClick={handleAddPath}
+                          disabled={!newPathName.trim()}
+                        >
                           <Plus />
                         </Button>
                       </div>
                     )}
 
-                    {currentPaths.map(path => (
+                    {currentPaths.map((path) => (
                       <div
                         key={path.id}
                         className={`flex items-center justify-between p-3 rounded-lg border-2 transition-colors ${
                           selectedPathId === path.id
-                            ? 'bg-primary/10 border-primary'
-                            : 'bg-card border-border hover:bg-muted'
-                        } ${editingPathId === path.id ? '' : 'cursor-pointer'}`}
-                        onClick={() => editingPathId !== path.id && setSelectedPathId(path.id)}
+                            ? "bg-primary/10 border-primary"
+                            : "bg-card border-border hover:bg-muted"
+                        } ${editingPathId === path.id ? "" : "cursor-pointer"}`}
+                        onClick={() =>
+                          editingPathId !== path.id &&
+                          setSelectedPathId(path.id)
+                        }
                       >
                         <div className="flex-1 min-w-0">
                           {editingPathId === path.id ? (
@@ -1269,12 +1548,14 @@ function App() {
                               <Input
                                 ref={editInputRef}
                                 value={editingPathName}
-                                onChange={(event) => setEditingPathName(event.target.value)}
+                                onChange={(event) =>
+                                  setEditingPathName(event.target.value)
+                                }
                                 onKeyDown={(event) => {
-                                  if (event.key === 'Enter') {
-                                    handleSavePathName()
-                                  } else if (event.key === 'Escape') {
-                                    handleCancelEditPathName()
+                                  if (event.key === "Enter") {
+                                    handleSavePathName();
+                                  } else if (event.key === "Escape") {
+                                    handleCancelEditPathName();
                                   }
                                 }}
                                 className="h-8 text-sm"
@@ -1284,8 +1565,8 @@ function App() {
                                 size="sm"
                                 variant="ghost"
                                 onClick={(event) => {
-                                  event.stopPropagation()
-                                  handleSavePathName()
+                                  event.stopPropagation();
+                                  handleSavePathName();
                                 }}
                                 className="h-8 w-8 p-0 text-accent hover:text-accent"
                               >
@@ -1295,8 +1576,8 @@ function App() {
                                 size="sm"
                                 variant="ghost"
                                 onClick={(event) => {
-                                  event.stopPropagation()
-                                  handleCancelEditPathName()
+                                  event.stopPropagation();
+                                  handleCancelEditPathName();
                                 }}
                                 className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
                               >
@@ -1305,8 +1586,12 @@ function App() {
                             </div>
                           ) : (
                             <>
-                              <div className="font-medium truncate">{path.name}</div>
-                              <div className="text-xs text-muted-foreground font-mono truncate">{path.id}</div>
+                              <div className="font-medium truncate">
+                                {path.name}
+                              </div>
+                              <div className="text-xs text-muted-foreground font-mono truncate">
+                                {path.id}
+                              </div>
                             </>
                           )}
                         </div>
@@ -1316,8 +1601,8 @@ function App() {
                               size="sm"
                               variant="ghost"
                               onClick={(event) => {
-                                event.stopPropagation()
-                                handleStartEditPathName(path.id, path.name)
+                                event.stopPropagation();
+                                handleStartEditPathName(path.id, path.name);
                               }}
                               className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
                               title="Rename path"
@@ -1328,8 +1613,8 @@ function App() {
                               size="sm"
                               variant="ghost"
                               onClick={(event) => {
-                                event.stopPropagation()
-                                handleDeletePath(path.id)
+                                event.stopPropagation();
+                                handleDeletePath(path.id);
                               }}
                               className="h-8 w-8 p-0 text-destructive hover:text-destructive"
                               title="Delete path"
@@ -1348,19 +1633,31 @@ function App() {
                 {selectedPath ? (
                   <Tabs defaultValue="editor" className="w-full">
                     <TabsList className="grid w-full grid-cols-4 mb-6">
-                      <TabsTrigger value="editor" className="flex items-center gap-2">
+                      <TabsTrigger
+                        value="editor"
+                        className="flex items-center gap-2"
+                      >
                         <List />
                         <span>Editor</span>
                       </TabsTrigger>
-                      <TabsTrigger value="flowchart" className="flex items-center gap-2">
+                      <TabsTrigger
+                        value="flowchart"
+                        className="flex items-center gap-2"
+                      >
                         <Tree />
                         <span>Flowchart</span>
                       </TabsTrigger>
-                      <TabsTrigger value="text" className="flex items-center gap-2">
+                      <TabsTrigger
+                        value="text"
+                        className="flex items-center gap-2"
+                      >
                         <TextAa />
                         <span>Text</span>
                       </TabsTrigger>
-                      <TabsTrigger value="json" className="flex items-center gap-2">
+                      <TabsTrigger
+                        value="json"
+                        className="flex items-center gap-2"
+                      >
                         <Code />
                         <span>JSON</span>
                       </TabsTrigger>
@@ -1381,45 +1678,113 @@ function App() {
                               <PopoverContent className="w-[500px]" align="end">
                                 <div className="space-y-4">
                                   <div>
-                                    <h4 className="font-semibold text-sm mb-3">Node Types</h4>
+                                    <h4 className="font-semibold text-sm mb-3">
+                                      Branch Types
+                                    </h4>
                                     <div className="space-y-3">
                                       <div className="flex gap-3">
-                                        <div className="flex-shrink-0 w-8 h-8 rounded-md flex items-center justify-center" style={{ backgroundColor: 'oklch(0.72 0.15 195)' }}>
-                                          <DiamondsFour weight="fill" size={20} style={{ color: 'oklch(0.98 0 0)' }} />
+                                        <div
+                                          className="flex-shrink-0 w-8 h-8 rounded-md flex items-center justify-center"
+                                          style={{
+                                            backgroundColor:
+                                              "oklch(0.72 0.15 195)",
+                                          }}
+                                        >
+                                          <DiamondsFour
+                                            weight="fill"
+                                            size={20}
+                                            style={{ color: "oklch(0.98 0 0)" }}
+                                          />
                                         </div>
                                         <div className="flex-1">
-                                          <div className="font-medium text-sm">Decision</div>
-                                          <div className="text-xs text-muted-foreground">A decision point that branches based on multiple conditions. Each condition evaluates to true or false and directs the flow accordingly.</div>
+                                          <div className="font-medium text-sm">
+                                            Decision
+                                          </div>
+                                          <div className="text-xs text-muted-foreground">
+                                            A decision point that branches based
+                                            on multiple conditions. Each
+                                            condition evaluates to true or false
+                                            and directs the flow accordingly.
+                                          </div>
                                         </div>
                                       </div>
 
                                       <div className="flex gap-3">
-                                        <div className="flex-shrink-0 w-8 h-8 rounded-md flex items-center justify-center" style={{ backgroundColor: 'oklch(0.88 0.08 210)' }}>
-                                          <CheckCircle weight="fill" size={20} style={{ color: 'oklch(0.25 0.05 210)' }} />
+                                        <div
+                                          className="flex-shrink-0 w-8 h-8 rounded-md flex items-center justify-center"
+                                          style={{ backgroundColor: "#cfefff" }}
+                                        >
+                                          <GitBranch
+                                            weight="fill"
+                                            size={20}
+                                            style={{ color: "#2b5f8a" }}
+                                          />
                                         </div>
                                         <div className="flex-1">
-                                          <div className="font-medium text-sm">Condition</div>
-                                          <div className="text-xs text-muted-foreground">A specific condition or criteria that must be evaluated. Conditions are attached to decision nodes and represent different possible paths.</div>
+                                          <div className="font-medium text-sm">
+                                            Condition
+                                          </div>
+                                          <div className="text-xs text-muted-foreground">
+                                            A specific condition or criteria
+                                            that must be evaluated. Conditions
+                                            are attached to decision nodes and
+                                            represent different possible paths.
+                                          </div>
                                         </div>
                                       </div>
 
                                       <div className="flex gap-3">
-                                        <div className="flex-shrink-0 w-8 h-8 rounded-md flex items-center justify-center" style={{ backgroundColor: 'oklch(0.75 0.12 160)' }}>
-                                          <CheckCircle weight="fill" size={20} style={{ color: 'oklch(0.98 0 0)' }} />
+                                        <div
+                                          className="flex-shrink-0 w-8 h-8 rounded-md flex items-center justify-center"
+                                          style={{
+                                            backgroundColor:
+                                              "oklch(0.58 0.10 235)",
+                                          }}
+                                        >
+                                          <CheckCircle
+                                            weight="fill"
+                                            size={20}
+                                            style={{ color: "oklch(0.98 0 0)" }}
+                                          />
                                         </div>
                                         <div className="flex-1">
-                                          <div className="font-medium text-sm">Outcome</div>
-                                          <div className="text-xs text-muted-foreground">A final result or action that ends a decision path. Outcomes represent the conclusion of a logical flow and do not branch further.</div>
+                                          <div className="font-medium text-sm">
+                                            Outcome
+                                          </div>
+                                          <div className="text-xs text-muted-foreground">
+                                            A final result or action that ends a
+                                            decision path. Outcomes represent
+                                            the conclusion of a logical flow and
+                                            do not branch further.
+                                          </div>
                                         </div>
                                       </div>
 
                                       <div className="flex gap-3">
-                                        <div className="flex-shrink-0 w-8 h-8 rounded-md flex items-center justify-center" style={{ backgroundColor: 'oklch(0.68 0.18 280)' }}>
-                                          <FlowArrow weight="fill" size={20} style={{ color: 'oklch(0.98 0 0)' }} />
+                                        <div
+                                          className="flex-shrink-0 w-8 h-8 rounded-md flex items-center justify-center"
+                                          style={{
+                                            backgroundColor:
+                                              "oklch(0.68 0.18 280)",
+                                          }}
+                                        >
+                                          <FlowArrow
+                                            weight="fill"
+                                            size={20}
+                                            style={{ color: "oklch(0.98 0 0)" }}
+                                          />
                                         </div>
                                         <div className="flex-1">
-                                          <div className="font-medium text-sm">Path Reference</div>
-                                          <div className="text-xs text-muted-foreground">A reference to another decision path. Use this to reuse existing logic or create modular decision trees that can be connected together.</div>
+                                          <div className="font-medium text-sm">
+                                            Path Reference
+                                          </div>
+                                          <div className="text-xs text-muted-foreground">
+                                            A reference to another decision
+                                            path. Use this to reuse existing
+                                            logic or create modular decision
+                                            trees that can be connected
+                                            together.
+                                          </div>
                                         </div>
                                       </div>
                                     </div>
@@ -1434,8 +1799,12 @@ function App() {
                             path={selectedPath}
                             paths={currentPaths}
                             currentPathId={selectedPath.id}
-                            onUpdatePath={(updatedPath) => handleUpdatePath(selectedPath.id, updatedPath)}
-                            onDeleteNode={() => handleDeletePath(selectedPath.id)}
+                            onUpdatePath={(updatedPath) =>
+                              handleUpdatePath(selectedPath.id, updatedPath)
+                            }
+                            onDeleteNode={() =>
+                              handleDeletePath(selectedPath.id)
+                            }
                           />
                         </CardContent>
                       </Card>
@@ -1444,7 +1813,10 @@ function App() {
                     <TabsContent value="flowchart">
                       <Card className="h-[600px]">
                         <CardContent className="p-0 h-full">
-                          <Flowchart paths={currentPaths} selectedPathId={selectedPathId} />
+                          <Flowchart
+                            paths={currentPaths}
+                            selectedPathId={selectedPathId}
+                          />
                         </CardContent>
                       </Card>
                     </TabsContent>
@@ -1454,7 +1826,11 @@ function App() {
                         <CardHeader>
                           <div className="flex items-center justify-between">
                             <CardTitle>Text Representation</CardTitle>
-                            <Button onClick={handleCopyText} variant="outline" size="sm">
+                            <Button
+                              onClick={handleCopyText}
+                              variant="outline"
+                              size="sm"
+                            >
                               <Copy />
                               Copy to Clipboard
                             </Button>
@@ -1463,7 +1839,10 @@ function App() {
                         <CardContent>
                           <div className="relative">
                             <div className="bg-muted p-4 rounded-lg overflow-auto max-h-[500px]">
-                              <SyntaxHighlightedText node={selectedPath} paths={currentPaths} />
+                              <SyntaxHighlightedText
+                                node={selectedPath}
+                                paths={currentPaths}
+                              />
                             </div>
                           </div>
                         </CardContent>
@@ -1475,7 +1854,11 @@ function App() {
                         <CardHeader>
                           <div className="flex items-center justify-between">
                             <CardTitle>Path JSON</CardTitle>
-                            <Button onClick={handleCopyJSON} variant="outline" size="sm">
+                            <Button
+                              onClick={handleCopyJSON}
+                              variant="outline"
+                              size="sm"
+                            >
                               <Copy />
                               Copy to Clipboard
                             </Button>
@@ -1484,7 +1867,9 @@ function App() {
                         <CardContent>
                           <div className="relative">
                             <pre className="bg-muted p-4 rounded-lg overflow-auto max-h-[500px] text-sm font-mono">
-                              <code>{JSON.stringify(selectedPath, null, 2)}</code>
+                              <code>
+                                {JSON.stringify(selectedPath, null, 2)}
+                              </code>
                             </pre>
                           </div>
                         </CardContent>
@@ -1495,7 +1880,9 @@ function App() {
                   <Card className="border-2 border-dashed">
                     <CardContent className="flex flex-col items-center justify-center py-16">
                       <List size={48} className="text-muted-foreground mb-4" />
-                      <h3 className="text-xl font-semibold mb-2">No Path Selected</h3>
+                      <h3 className="text-xl font-semibold mb-2">
+                        No Path Selected
+                      </h3>
                       <p className="text-muted-foreground">
                         Select a path from the sidebar to start editing
                       </p>
@@ -1508,7 +1895,7 @@ function App() {
         )}
       </div>
     </div>
-  )
+  );
 }
 
-export default App
+export default App;
