@@ -160,6 +160,8 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
     return map
   }, [notedNodes])
 
+  const pathNote = selectedPath?.pathNote?.trim() || ''
+
   const appendCitation = (label: string, nodeId: string) => {
     const citation = flowCitationMap.get(nodeId)
     return citation ? `${label} (${citation})` : label
@@ -632,7 +634,7 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
 
       ctx.restore()
 
-      if (notedNodes.length > 0) {
+      if (pathNote || notedNodes.length > 0) {
         const panelWidth = Math.min(rect.width - 32, 720)
         const panelX = 16
         const panelHeight = getFootnotePanelHeight(ctx, panelWidth - 24)
@@ -642,7 +644,7 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
     }
 
     render()
-  }, [selectedPath, paths, zoom, pan, hoveredNode, expandReferences, notedNodes, flowCitationMap])
+  }, [selectedPath, paths, zoom, pan, hoveredNode, expandReferences, notedNodes, flowCitationMap, pathNote])
 
   const drawConnection = (ctx: CanvasRenderingContext2D, conn: Connection, offsetX: number, offsetY: number) => {
     const fromX = conn.from.x + offsetX
@@ -782,6 +784,14 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
   const getFootnoteRenderLines = (ctx: CanvasRenderingContext2D, maxTextWidth: number): string[] => {
     const lines: string[] = ['Notes']
 
+    if (pathNote) {
+      lines.push(...wrapText(ctx, pathNote, maxTextWidth, Number.POSITIVE_INFINITY))
+    }
+
+    if (pathNote && notedNodes.length > 0) {
+      lines.push('')
+    }
+
     notedNodes.forEach((item) => {
       const wrapped = wrapText(ctx, `(${item.citation}) ${item.note}`, maxTextWidth, Number.POSITIVE_INFINITY)
       lines.push(...wrapped)
@@ -791,7 +801,7 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
   }
 
   const getFootnotePanelHeight = (ctx: CanvasRenderingContext2D, maxTextWidth: number): number => {
-    if (notedNodes.length === 0) return 0
+    if (notedNodes.length === 0 && !pathNote) return 0
 
     const lines = getFootnoteRenderLines(ctx, maxTextWidth)
     const lineHeight = 17
@@ -805,7 +815,7 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
     panelWidth: number,
     maxTextWidth: number
   ) => {
-    if (notedNodes.length === 0) return
+    if (notedNodes.length === 0 && !pathNote) return
 
     const lines = getFootnoteRenderLines(ctx, maxTextWidth)
     const lineHeight = 17
@@ -1080,11 +1090,17 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
     const contentWidth = maxX - minX + padding * 2
     const contentHeight = maxY - minY + padding * 2
     const notesLines: string[] = ['Notes']
+    if (pathNote) {
+      notesLines.push(...wrapTextForSVG(pathNote, contentWidth - 24, Number.POSITIVE_INFINITY))
+    }
+    if (pathNote && notedNodes.length > 0) {
+      notesLines.push('')
+    }
     notedNodes.forEach((item) => {
       notesLines.push(...wrapTextForSVG(`(${item.citation}) ${item.note}`, contentWidth - 24, Number.POSITIVE_INFINITY))
     })
     const notesLineHeight = 17
-    const notesBlockHeight = notedNodes.length > 0 ? 16 + notesLines.length * notesLineHeight + 12 : 0
+    const notesBlockHeight = (pathNote || notedNodes.length > 0) ? 16 + notesLines.length * notesLineHeight + 12 : 0
     const width = contentWidth
     const height = contentHeight + (notesBlockHeight > 0 ? notesBlockHeight + 16 : 0)
     const offsetX = -minX + padding

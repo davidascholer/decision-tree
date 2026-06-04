@@ -36,6 +36,7 @@ export type TreeNode = DecisionNode | OutcomeNode | PathReferenceNode | Conditio
 
 export type DecisionPath = (DecisionNode | OutcomeNode | PathReferenceNode) & {
   name: string
+  pathNote?: string
 }
 
 export interface DecisionProject {

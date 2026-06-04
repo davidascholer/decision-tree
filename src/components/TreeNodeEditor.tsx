@@ -1,8 +1,10 @@
 import { TreeNode, DecisionPath, OutcomeNode } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import { Plus, Trash, Pencil, DiamondsFour, CheckCircle, FlowArrow, CaretDown, CaretRight, WarningCircle, NotePencil } from '@phosphor-icons/react'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { AddNodeDialog } from './AddNodeDialog'
 import { generateId, findIncompleteConditions, collectNotedNodes } from '@/lib/tree-utils'
 import { useNodeColors } from '@/hooks/use-node-colors'
@@ -28,10 +30,14 @@ export function TreeNodeEditor({
 }: TreeNodeEditorProps) {
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
-  const [editConditionDialogOpen, setEditConditionDialogOpen] = useState(false)
-  const [conditionToEdit, setConditionToEdit] = useState<Extract<TreeNode, { type: 'condition' }> | null>(null)
+  const [editingConditionId, setEditingConditionId] = useState<string | null>(null)
   const [isExpanded, setIsExpanded] = useState(true)
+  const [pathNoteDraft, setPathNoteDraft] = useState(path.pathNote || '')
   const colors = useNodeColors()
+
+  useEffect(() => {
+    setPathNoteDraft(path.pathNote || '')
+  }, [path.id, path.pathNote])
 
   const getOutcomeColors = (node: OutcomeNode) => {
     switch (node.outcomeType || 'neutral') {
@@ -78,12 +84,25 @@ export function TreeNodeEditor({
     }
   }
 
-  const handleAddCondition = (_: string, conditionNode: TreeNode) => {
+  const handleAddCondition = (_: string, nextNode: TreeNode, conditionDescription?: string) => {
     if (path.type === 'decision') {
       const conditions = path.conditions || []
+      const description = (conditionDescription || '').trim()
+      if (!description) {
+        toast.error('Condition label is required')
+        return
+      }
       onUpdatePath({
         ...path,
-        conditions: [...conditions, conditionNode as any]
+        conditions: [
+          ...conditions,
+          {
+            id: generateId(),
+            type: 'condition',
+            description,
+            next: nextNode
+          }
+        ]
       })
     }
   }
@@ -95,18 +114,12 @@ export function TreeNodeEditor({
   const handleDeleteCondition = (conditionId: string) => {
     if (path.type === 'decision') {
       const conditions = path.conditions || []
-      const conditionToDelete = conditions.find(c => c.id === conditionId)
-      
-      if (conditionToDelete && conditionToDelete.next) {
-        toast.error('Cannot delete condition with children. Delete the child node first.')
-        return
-      }
-      
+
       onUpdatePath({
         ...path,
         conditions: conditions.filter(c => c.id !== conditionId)
       })
-      toast.success('Condition deleted')
+      toast.success('Branch deleted')
     }
   }
 
@@ -156,10 +169,76 @@ export function TreeNodeEditor({
     }
   }
 
+  const handleSavePathNote = () => {
+    const normalized = pathNoteDraft.replace(/\r\n?/g, '\n')
+    const nextValue = normalized.trim().length > 0 ? normalized : undefined
+    const currentValue = path.pathNote
+
+    if (nextValue === currentValue) return
+
+    onUpdatePath({
+      ...path,
+      pathNote: nextValue,
+    })
+  }
+
+  const hasPathNote = !!path.pathNote?.trim()
+  const hasCitedNotes = notedNodes.length > 0
+
+  const renderNotesSection = () => (
+    <>
+      <div className="mt-4 pt-4 border-t-2 border-border space-y-2">
+        <Label htmlFor={`path-note-${path.id}`} className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+          Path Notes
+        </Label>
+        <Textarea
+          id={`path-note-${path.id}`}
+          placeholder="Add notes that apply to this entire path..."
+          value={pathNoteDraft}
+          onChange={(e) => setPathNoteDraft(e.target.value)}
+          onBlur={handleSavePathNote}
+          rows={3}
+          className="whitespace-pre-wrap"
+        />
+      </div>
+
+      {(hasPathNote || hasCitedNotes) && (
+        <div className="mt-6 pt-4 border-t-2 border-border">
+          <div className="flex items-center gap-2 mb-3 text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+            <NotePencil size={15} />
+            <span>Notes</span>
+          </div>
+
+          {hasPathNote && (
+            <div className="mb-3">
+              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">Path Note</div>
+              <p className="text-sm text-muted-foreground italic whitespace-pre-wrap break-words">{path.pathNote}</p>
+            </div>
+          )}
+
+          {hasCitedNotes && (
+            <>
+              {hasPathNote && <div className="border-t border-border/60 my-3" />}
+              <ol className="space-y-2">
+                {notedNodes.map((item, i) => (
+                  <li key={item.id} className="flex gap-2.5 text-sm">
+                    <span className="shrink-0 font-bold font-mono text-current">[{i + 1}]</span>
+                    <span className="text-muted-foreground italic whitespace-pre-wrap break-words">{item.note}</span>
+                  </li>
+                ))}
+              </ol>
+            </>
+          )}
+        </div>
+      )}
+    </>
+  )
+
   if (path.type === 'decision') {
     const nodeColors = getNodeColor(path)
     const canDelete = !!onDeleteNode
     const hasIncompleteConditions = incompleteConditionIds.size > 0
+    const conditionBeingEdited = (path.conditions || []).find(c => c.id === editingConditionId)
     
     return (
       <div className="space-y-2">
@@ -249,24 +328,21 @@ export function TreeNodeEditor({
                           <Button
                             size="sm"
                             variant="ghost"
-                            onClick={() => {
-                              setConditionToEdit(condition)
-                              setEditConditionDialogOpen(true)
-                            }}
+                            onClick={() => setEditingConditionId(condition.id)}
                             className="h-8 w-8 p-0"
-                            title="Edit condition"
+                            title="Edit branch"
+                            disabled={!condition.next}
                           >
-                            <Pencil />
+                            <Pencil className={!condition.next ? 'opacity-30' : ''} />
                           </Button>
                           <Button
                             size="sm"
                             variant="ghost"
                             onClick={() => handleDeleteCondition(condition.id)}
                             className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                            title={condition.next ? "Cannot delete - has children" : "Delete condition"}
-                            disabled={!!condition.next}
+                            title="Delete branch"
                           >
-                            <Trash className={condition.next ? 'opacity-30' : ''} />
+                            <Trash />
                           </Button>
                         </div>
                       </div>
@@ -298,7 +374,7 @@ export function TreeNodeEditor({
                 className="w-full"
               >
                 <Plus />
-                Add Condition
+                Add Branch
               </Button>
             </div>
           </>
@@ -311,7 +387,8 @@ export function TreeNodeEditor({
           paths={paths}
           currentPathId={currentPathId}
           mode="output"
-          parentNodeType="decision"
+          parentNodeType="condition"
+          initialConditionDescription=""
         />
 
         <AddNodeDialog
@@ -332,37 +409,29 @@ export function TreeNodeEditor({
           allowTypeChange={!hasChildren(path)}
         />
 
-        {conditionToEdit && (
+        {conditionBeingEdited?.next && (
           <AddNodeDialog
-            open={editConditionDialogOpen}
-            onOpenChange={setEditConditionDialogOpen}
-            onAdd={(_, updatedNode) => {
-              handleUpdateCondition(conditionToEdit.id, updatedNode as any)
-              setConditionToEdit(null)
+            open={editingConditionId === conditionBeingEdited.id}
+            onOpenChange={(open) => {
+              if (!open) setEditingConditionId(null)
+            }}
+            onAdd={(_, updatedNode, updatedConditionDescription) => {
+              handleUpdateCondition(conditionBeingEdited.id, {
+                ...conditionBeingEdited,
+                description: updatedConditionDescription?.trim() || conditionBeingEdited.description,
+                next: updatedNode
+              })
+              setEditingConditionId(null)
             }}
             paths={paths}
             currentPathId={currentPathId}
             mode="edit"
-            initialNode={conditionToEdit}
+            initialNode={conditionBeingEdited.next}
+            initialConditionDescription={conditionBeingEdited.description}
           />
         )}
 
-        {notedNodes.length > 0 && (
-          <div className="mt-6 pt-4 border-t-2 border-border">
-            <div className="flex items-center gap-2 mb-3 text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-              <NotePencil size={15} />
-              <span>Notes</span>
-            </div>
-            <ol className="space-y-2">
-              {notedNodes.map((item, i) => (
-                <li key={item.id} className="flex gap-2.5 text-sm">
-                  <span className="shrink-0 font-bold font-mono text-current">[{i + 1}]</span>
-                  <span className="text-muted-foreground italic whitespace-pre-wrap break-words">{item.note}</span>
-                </li>
-              ))}
-            </ol>
-          </div>
-        )}
+        {renderNotesSection()}
       </div>
     )
   }
@@ -429,15 +498,7 @@ export function TreeNodeEditor({
           allowTypeChange
         />
 
-        {path.note && (
-          <div className="mt-4 pt-4 border-t-2 border-border">
-            <div className="flex items-center gap-2 mb-2 text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-              <NotePencil size={15} />
-              <span>Notes</span>
-            </div>
-            <p className="text-sm text-muted-foreground italic whitespace-pre-wrap break-words">{path.note}</p>
-          </div>
-        )}
+        {renderNotesSection()}
       </div>
     )
   }
@@ -450,7 +511,6 @@ interface ConditionNodeEditorProps {
   paths: DecisionPath[]
   currentPathId: string
   onUpdateCondition: (condition: Extract<TreeNode, { type: 'condition' }>) => void
-  onDeleteNode?: () => void
   depth: number
   citationMap: Map<string, number>
 }
@@ -460,12 +520,11 @@ function ConditionNodeEditor({
   paths, 
   currentPathId,
   onUpdateCondition,
-  onDeleteNode,
   depth,
   citationMap
 }: ConditionNodeEditorProps) {
   const [addChildOpen, setAddChildOpen] = useState(false)
-  const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [editingNestedConditionId, setEditingNestedConditionId] = useState<string | null>(null)
   const [isExpanded, setIsExpanded] = useState(true)
   const colors = useNodeColors()
 
@@ -479,15 +538,7 @@ function ConditionNodeEditor({
     return false
   }
 
-  const handleDeleteChild = () => {
-    if (condition.next && hasChildren(condition.next)) {
-      toast.error('Cannot delete node with children. Delete all child nodes first.')
-      return
-    }
-    
-    onUpdateCondition({ ...condition, next: undefined })
-    toast.success('Node deleted')
-  }
+
 
   const handleAddChild = (_: string, newNode: TreeNode) => {
     onUpdateCondition({ ...condition, next: newNode })
@@ -549,6 +600,8 @@ function ConditionNodeEditor({
     const next = condition.next
 
     if (next.type === 'decision') {
+      const nestedConditionBeingEdited = (next.conditions || []).find(c => c.id === editingNestedConditionId)
+
       return (
         <div className="space-y-2">
           <div 
@@ -571,27 +624,6 @@ function ConditionNodeEditor({
               </div>
               <div className="text-xs opacity-80 font-mono mt-1">ID: {next.id}</div>
             </div>
-            <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setEditDialogOpen(true)}
-                className="h-8 w-8 p-0"
-                title="Edit node"
-              >
-                <Pencil />
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={handleDeleteChild}
-                className="h-8 w-8 p-0"
-                title={hasChildren(next) ? "Cannot delete - has children" : "Delete node"}
-                disabled={hasChildren(next)}
-              >
-                <Trash className={hasChildren(next) ? 'opacity-30' : ''} />
-              </Button>
-            </div>
           </div>
 
           {isExpanded && (
@@ -601,13 +633,25 @@ function ConditionNodeEditor({
                   {next.conditions.map((cond) => (
                     <div key={cond.id} className="border-l-2 border-border pl-4">
                       <div className="flex items-center justify-between mb-2">
-                        <Badge variant="outline" className="font-mono">
-                          <span className="whitespace-pre-wrap break-words">{cond.description}</span>
-                          {citationMap.has(cond.id) && (
-                            <span className="ml-1 text-xs font-bold text-current select-none">[{citationMap.get(cond.id)}]</span>
-                          )}
-                        </Badge>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="font-mono">
+                            <span className="whitespace-pre-wrap break-words">{cond.description}</span>
+                            {citationMap.has(cond.id) && (
+                              <span className="ml-1 text-xs font-bold text-current select-none">[{citationMap.get(cond.id)}]</span>
+                            )}
+                          </Badge>
+                        </div>
                         <div className="flex gap-1">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setEditingNestedConditionId(cond.id)}
+                            className="h-8 w-8 p-0"
+                            title="Edit branch"
+                            disabled={!cond.next}
+                          >
+                            <Pencil className={!cond.next ? 'opacity-30' : ''} />
+                          </Button>
                           <Button
                             size="sm"
                             variant="ghost"
@@ -620,13 +664,12 @@ function ConditionNodeEditor({
                                   conditions: updatedConditions
                                 }
                               })
-                              toast.success('Condition deleted')
+                              toast.success('Branch deleted')
                             }}
                             className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                            title={cond.next ? "Cannot delete - has children" : "Delete condition"}
-                            disabled={!!cond.next}
+                            title="Delete branch"
                           >
-                            <Trash className={cond.next ? 'opacity-30' : ''} />
+                            <Trash />
                           </Button>
                         </div>
                       </div>
@@ -664,7 +707,7 @@ function ConditionNodeEditor({
                   className="w-full"
                 >
                   <Plus />
-                  Add Condition
+                  Add Branch
                 </Button>
               </div>
             </>
@@ -673,33 +716,70 @@ function ConditionNodeEditor({
           <AddNodeDialog
             open={addChildOpen}
             onOpenChange={setAddChildOpen}
-            onAdd={(_, newCondition) => {
+            onAdd={(_, newNode, conditionDescription) => {
+              const description = (conditionDescription || '').trim()
+              if (!description) {
+                toast.error('Condition label is required')
+                return
+              }
               const conditions = next.conditions || []
               onUpdateCondition({
                 ...condition,
                 next: {
                   ...next,
-                  conditions: [...conditions, newCondition as any]
+                  conditions: [
+                    ...conditions,
+                    {
+                      id: generateId(),
+                      type: 'condition',
+                      description,
+                      next: newNode
+                    }
+                  ]
                 }
               })
             }}
             paths={paths}
             currentPathId={currentPathId}
             mode="output"
-            parentNodeType="decision"
+            parentNodeType="condition"
+            initialConditionDescription=""
           />
 
-          <AddNodeDialog
-            open={editDialogOpen}
-            onOpenChange={setEditDialogOpen}
-            onAdd={(_, updatedNode) =>
-              onUpdateCondition({ ...condition, next: updatedNode })
-            }
-            paths={paths}
-            currentPathId={currentPathId}
-            mode="edit"
-            initialNode={next}
-          />
+          {nestedConditionBeingEdited?.next && (
+            <AddNodeDialog
+              open={editingNestedConditionId === nestedConditionBeingEdited.id}
+              onOpenChange={(open) => {
+                if (!open) setEditingNestedConditionId(null)
+              }}
+              onAdd={(_, updatedNode, updatedConditionDescription) => {
+                const updatedConditions = (next.conditions || []).map(c =>
+                  c.id === nestedConditionBeingEdited.id
+                    ? {
+                        ...nestedConditionBeingEdited,
+                        description: updatedConditionDescription?.trim() || nestedConditionBeingEdited.description,
+                        next: updatedNode
+                      }
+                    : c
+                )
+
+                onUpdateCondition({
+                  ...condition,
+                  next: {
+                    ...next,
+                    conditions: updatedConditions
+                  }
+                })
+
+                setEditingNestedConditionId(null)
+              }}
+              paths={paths}
+              currentPathId={currentPathId}
+              mode="edit"
+              initialNode={nestedConditionBeingEdited.next}
+              initialConditionDescription={nestedConditionBeingEdited.description}
+            />
+          )}
         </div>
       )
     }
@@ -721,39 +801,8 @@ function ConditionNodeEditor({
             </div>
             <div className="text-xs opacity-80 font-mono mt-1">ID: {next.id}</div>
           </div>
-          <div className="flex gap-1">
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => setEditDialogOpen(true)}
-              className="h-8 w-8 p-0"
-              title="Edit node"
-            >
-              <Pencil />
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={handleDeleteChild}
-              className="h-8 w-8 p-0"
-              title="Delete node"
-            >
-              <Trash />
-            </Button>
-          </div>
         </div>
 
-        <AddNodeDialog
-          open={editDialogOpen}
-          onOpenChange={setEditDialogOpen}
-          onAdd={(_, updatedNode) =>
-            onUpdateCondition({ ...condition, next: updatedNode })
-          }
-          paths={paths}
-          currentPathId={currentPathId}
-          mode="edit"
-          initialNode={next}
-        />
       </div>
     )
   }

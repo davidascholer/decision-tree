@@ -11,13 +11,14 @@ import { useState, useEffect } from 'react'
 interface AddNodeDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onAdd: (branchLabel: string, node: TreeNode) => void
+  onAdd: (branchLabel: string, node: TreeNode, conditionDescription?: string) => void
   paths: DecisionPath[]
   currentPathId: string
   mode: 'output' | 'edit'
   initialNode?: TreeNode
   parentNodeType?: 'decision' | 'condition' | null
   allowTypeChange?: boolean
+  initialConditionDescription?: string
 }
 
 export function AddNodeDialog({ 
@@ -30,11 +31,13 @@ export function AddNodeDialog({
   initialNode,
   parentNodeType = null,
   allowTypeChange = false,
+  initialConditionDescription,
 }: AddNodeDialogProps) {
   const [nodeType, setNodeType] = useState<'decision' | 'outcome' | 'path-reference' | 'condition'>('condition')
   const [description, setDescription] = useState('')
   const [selectedPathId, setSelectedPathId] = useState('')
   const [conditionDescription, setConditionDescription] = useState('')
+  const [incomingConditionDescription, setIncomingConditionDescription] = useState('')
   const [note, setNote] = useState('')
   const [outcomeType, setOutcomeType] = useState<OutcomeStatus>('neutral')
 
@@ -52,10 +55,12 @@ export function AddNodeDialog({
         setConditionDescription(initialNode.description)
       }
       setNote((initialNode as any).note || '')
+      setIncomingConditionDescription(initialConditionDescription || '')
     } else if (open) {
       setDescription('')
       setSelectedPathId('')
       setConditionDescription('')
+      setIncomingConditionDescription(initialConditionDescription || '')
       setNote('')
       setOutcomeType('neutral')
       
@@ -67,7 +72,7 @@ export function AddNodeDialog({
         setNodeType('condition')
       }
     }
-  }, [open, initialNode, parentNodeType])
+  }, [open, initialNode, parentNodeType, initialConditionDescription])
 
   const handleSubmit = () => {
     let node: TreeNode
@@ -108,11 +113,12 @@ export function AddNodeDialog({
       }
     }
 
-    onAdd('', node)
+    onAdd('', node, incomingConditionDescription.trim() || undefined)
     onOpenChange(false)
   }
 
   const isValid = () => {
+    if (initialConditionDescription !== undefined && !incomingConditionDescription.trim()) return false
     if (nodeType === 'decision' && !description.trim()) return false
     if (nodeType === 'condition' && !conditionDescription.trim()) return false
     if (nodeType === 'outcome' && !description.trim()) return false
@@ -172,6 +178,18 @@ export function AddNodeDialog({
               </p>
             )}
           </div>
+
+            {initialConditionDescription !== undefined && (
+              <div className="space-y-2">
+                <Label htmlFor="incoming-condition">Condition</Label>
+                <Input
+                  id="incoming-condition"
+                  placeholder="Condition that leads to this node"
+                  value={incomingConditionDescription}
+                  onChange={(e) => setIncomingConditionDescription(e.target.value)}
+                />
+              </div>
+            )}
 
           {nodeType === 'decision' && (
             <div className="space-y-2">
