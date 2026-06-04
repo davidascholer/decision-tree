@@ -1435,6 +1435,7 @@ function App() {
                             paths={currentPaths}
                             currentPathId={selectedPath.id}
                             onUpdatePath={(updatedPath) => handleUpdatePath(selectedPath.id, updatedPath)}
+                            onDeleteNode={() => handleDeletePath(selectedPath.id)}
                           />
                         </CardContent>
                       </Card>

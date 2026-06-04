@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import { DecisionPath, TreeNode } from '@/lib/types'
+import { DecisionPath, OutcomeStatus, TreeNode } from '@/lib/types'
 import { generateId, hasCircularReference } from '@/lib/tree-utils'
 import { useState, useEffect } from 'react'
 
@@ -17,6 +17,7 @@ interface AddNodeDialogProps {
   mode: 'output' | 'edit'
   initialNode?: TreeNode
   parentNodeType?: 'decision' | 'condition' | null
+  allowTypeChange?: boolean
 }
 
 export function AddNodeDialog({ 
@@ -27,13 +28,15 @@ export function AddNodeDialog({
   currentPathId,
   mode,
   initialNode,
-  parentNodeType = null
+  parentNodeType = null,
+  allowTypeChange = false,
 }: AddNodeDialogProps) {
   const [nodeType, setNodeType] = useState<'decision' | 'outcome' | 'path-reference' | 'condition'>('condition')
   const [description, setDescription] = useState('')
   const [selectedPathId, setSelectedPathId] = useState('')
   const [conditionDescription, setConditionDescription] = useState('')
   const [note, setNote] = useState('')
+  const [outcomeType, setOutcomeType] = useState<OutcomeStatus>('neutral')
 
   useEffect(() => {
     if (open && initialNode) {
@@ -42,6 +45,7 @@ export function AddNodeDialog({
         setDescription(initialNode.description)
       } else if (initialNode.type === 'outcome') {
         setDescription(initialNode.description)
+        setOutcomeType(initialNode.outcomeType || 'neutral')
       } else if (initialNode.type === 'path-reference') {
         setSelectedPathId(initialNode.pathId)
       } else if (initialNode.type === 'condition') {
@@ -53,6 +57,7 @@ export function AddNodeDialog({
       setSelectedPathId('')
       setConditionDescription('')
       setNote('')
+      setOutcomeType('neutral')
       
       if (parentNodeType === 'decision') {
         setNodeType('condition')
@@ -91,7 +96,8 @@ export function AddNodeDialog({
         id: initialNode?.id || generateId(),
         type: 'outcome',
         description: description.trim(),
-        note: trimmedNote
+        note: trimmedNote,
+        outcomeType
       }
     } else {
       node = {
@@ -135,7 +141,7 @@ export function AddNodeDialog({
         <div className="space-y-4 py-4">
           <div className="space-y-2">
             <Label htmlFor="node-type">Node Type</Label>
-            <Select value={nodeType} onValueChange={(value: any) => setNodeType(value)} disabled={mode === 'edit'}>
+            <Select value={nodeType} onValueChange={(value: any) => setNodeType(value)} disabled={mode === 'edit' && !allowTypeChange}>
               <SelectTrigger id="node-type">
                 <SelectValue />
               </SelectTrigger>
@@ -160,7 +166,7 @@ export function AddNodeDialog({
                 )}
               </SelectContent>
             </Select>
-            {mode === 'edit' && (
+            {mode === 'edit' && !allowTypeChange && (
               <p className="text-xs text-muted-foreground">
                 Node type cannot be changed after creation. Delete and recreate if needed.
               </p>
@@ -193,16 +199,31 @@ export function AddNodeDialog({
           )}
 
           {nodeType === 'outcome' && (
-            <div className="space-y-2">
-              <Label htmlFor="description">Outcome Description</Label>
-              <Textarea
-                id="description"
-                placeholder="Describe the final outcome"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                rows={3}
-              />
-            </div>
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="description">Outcome Description</Label>
+                <Textarea
+                  id="description"
+                  placeholder="Describe the final outcome"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  rows={3}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="outcome-type">Outcome Type</Label>
+                <Select value={outcomeType} onValueChange={(value: OutcomeStatus) => setOutcomeType(value)}>
+                  <SelectTrigger id="outcome-type">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="neutral">Neutral</SelectItem>
+                    <SelectItem value="success">Success</SelectItem>
+                    <SelectItem value="fail">Fail</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </>
           )}
 
           {nodeType === 'path-reference' && (

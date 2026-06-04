@@ -1,4 +1,4 @@
-import { TreeNode, DecisionPath } from '@/lib/types'
+import { TreeNode, DecisionPath, OutcomeNode } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Plus, Trash, Pencil, DiamondsFour, CheckCircle, FlowArrow, CaretDown, CaretRight, WarningCircle, NotePencil } from '@phosphor-icons/react'
@@ -32,6 +32,18 @@ export function TreeNodeEditor({
   const [conditionToEdit, setConditionToEdit] = useState<Extract<TreeNode, { type: 'condition' }> | null>(null)
   const [isExpanded, setIsExpanded] = useState(true)
   const colors = useNodeColors()
+
+  const getOutcomeColors = (node: OutcomeNode) => {
+    switch (node.outcomeType || 'neutral') {
+      case 'success':
+        return { bg: colors.outcome, fg: colors.outcomeForeground }
+      case 'fail':
+        return { bg: 'oklch(0.62 0.20 25)', fg: 'oklch(0.98 0 0)' }
+      case 'neutral':
+      default:
+        return { bg: 'oklch(0.58 0.10 235)', fg: 'oklch(0.98 0 0)' }
+    }
+  }
 
   const citationMap = useMemo(() => {
     const noted = collectNotedNodes(path)
@@ -121,14 +133,14 @@ export function TreeNodeEditor({
     }
   }
 
-  const getNodeColor = (type: TreeNode['type'] | 'decision') => {
-    switch (type) {
+  const getNodeColor = (node: TreeNode | DecisionPath) => {
+    switch (node.type) {
       case 'decision':
         return { bg: colors.decision, fg: colors.decisionForeground }
       case 'condition':
         return { bg: colors.accent, fg: colors.accentForeground }
       case 'outcome':
-        return { bg: colors.outcome, fg: colors.outcomeForeground }
+        return getOutcomeColors(node)
       case 'path-reference':
         return { bg: colors.pathRef, fg: colors.pathRefForeground }
     }
@@ -145,8 +157,8 @@ export function TreeNodeEditor({
   }
 
   if (path.type === 'decision') {
-    const nodeColors = getNodeColor(path.type)
-    const canDelete = depth > 0 && onDeleteNode
+    const nodeColors = getNodeColor(path)
+    const canDelete = !!onDeleteNode
     const hasIncompleteConditions = incompleteConditionIds.size > 0
     
     return (
@@ -174,7 +186,7 @@ export function TreeNodeEditor({
           )}
           {getNodeIcon(path.type)}
           <div className="flex-1">
-            <div className="font-medium">
+            <div className="font-medium whitespace-pre-wrap break-words">
               {path.description}
               {citationMap.has(path.id) && (
                 <span className="ml-1.5 text-xs font-bold font-mono text-current select-none">[{citationMap.get(path.id)}]</span>
@@ -221,7 +233,7 @@ export function TreeNodeEditor({
                             variant="outline" 
                             className={`font-mono ${isIncomplete ? 'border-destructive text-destructive border-2 animate-pulse' : ''}`}
                           >
-                            {condition.description}
+                            <span className="whitespace-pre-wrap break-words">{condition.description}</span>
                             {citationMap.has(condition.id) && (
                               <span className="ml-1 text-xs font-bold text-current select-none">[{citationMap.get(condition.id)}]</span>
                             )}
@@ -305,11 +317,19 @@ export function TreeNodeEditor({
         <AddNodeDialog
           open={editDialogOpen}
           onOpenChange={setEditDialogOpen}
-          onAdd={(_, newNode) => handleUpdatePath(newNode as any)}
+          onAdd={(_, newNode) => {
+            const updatedPath = {
+              ...(newNode as any),
+              name: path.name,
+            } as DecisionPath
+            onUpdatePath(updatedPath)
+          }}
           paths={paths}
           currentPathId={currentPathId}
           mode="edit"
           initialNode={path as any}
+          parentNodeType="condition"
+          allowTypeChange={!hasChildren(path)}
         />
 
         {conditionToEdit && (
@@ -337,10 +357,85 @@ export function TreeNodeEditor({
               {notedNodes.map((item, i) => (
                 <li key={item.id} className="flex gap-2.5 text-sm">
                   <span className="shrink-0 font-bold font-mono text-current">[{i + 1}]</span>
-                  <span className="text-muted-foreground italic">{item.note}</span>
+                  <span className="text-muted-foreground italic whitespace-pre-wrap break-words">{item.note}</span>
                 </li>
               ))}
             </ol>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  if (path.type === 'outcome' || path.type === 'path-reference') {
+    const nodeColors = getNodeColor(path)
+    const canDelete = !!onDeleteNode
+
+    return (
+      <div className="space-y-2">
+        <div
+          className="flex items-center gap-3 p-3 rounded-lg border-2"
+          style={{ backgroundColor: nodeColors.bg, color: nodeColors.fg, borderColor: nodeColors.fg }}
+        >
+          {getNodeIcon(path.type)}
+          <div className="flex-1">
+            <div className="font-medium whitespace-pre-wrap break-words">
+              <span className="whitespace-pre-wrap break-words">{getNodeLabel(path)}</span>
+              {citationMap.has(path.id) && (
+                <span className="ml-1.5 text-xs font-bold font-mono text-current select-none">[{citationMap.get(path.id)}]</span>
+              )}
+            </div>
+            <div className="text-xs opacity-80 font-mono mt-1">ID: {path.id}</div>
+          </div>
+          <div className="flex gap-1">
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setEditDialogOpen(true)}
+              className="h-8 w-8 p-0"
+              title="Edit node"
+            >
+              <Pencil />
+            </Button>
+            {canDelete && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={handleDelete}
+                className="h-8 w-8 p-0"
+                title="Delete node"
+              >
+                <Trash />
+              </Button>
+            )}
+          </div>
+        </div>
+
+        <AddNodeDialog
+          open={editDialogOpen}
+          onOpenChange={setEditDialogOpen}
+          onAdd={(_, newNode) => {
+            const updatedPath = {
+              ...(newNode as any),
+              name: path.name,
+            } as DecisionPath
+            onUpdatePath(updatedPath)
+          }}
+          paths={paths}
+          currentPathId={currentPathId}
+          mode="edit"
+          initialNode={path as any}
+          parentNodeType="condition"
+          allowTypeChange
+        />
+
+        {path.note && (
+          <div className="mt-4 pt-4 border-t-2 border-border">
+            <div className="flex items-center gap-2 mb-2 text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+              <NotePencil size={15} />
+              <span>Notes</span>
+            </div>
+            <p className="text-sm text-muted-foreground italic whitespace-pre-wrap break-words">{path.note}</p>
           </div>
         )}
       </div>
@@ -415,14 +510,26 @@ function ConditionNodeEditor({
     }
   }
 
-  const getNodeColor = (type: TreeNode['type']) => {
-    switch (type) {
+  const getOutcomeColors = (node: OutcomeNode) => {
+    switch (node.outcomeType || 'neutral') {
+      case 'success':
+        return { bg: colors.outcome, fg: colors.outcomeForeground }
+      case 'fail':
+        return { bg: 'oklch(0.62 0.20 25)', fg: 'oklch(0.98 0 0)' }
+      case 'neutral':
+      default:
+        return { bg: 'oklch(0.58 0.10 235)', fg: 'oklch(0.98 0 0)' }
+    }
+  }
+
+  const getNodeColor = (node: TreeNode) => {
+    switch (node.type) {
       case 'decision':
         return { bg: colors.decision, fg: colors.decisionForeground }
       case 'condition':
         return { bg: colors.accent, fg: colors.accentForeground }
       case 'outcome':
-        return { bg: colors.outcome, fg: colors.outcomeForeground }
+        return getOutcomeColors(node)
       case 'path-reference':
         return { bg: colors.pathRef, fg: colors.pathRefForeground }
     }
@@ -446,7 +553,7 @@ function ConditionNodeEditor({
         <div className="space-y-2">
           <div 
             className="flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer hover:opacity-90 transition-opacity" 
-            style={{ backgroundColor: getNodeColor(next.type).bg, color: getNodeColor(next.type).fg, borderColor: getNodeColor(next.type).fg }}
+            style={{ backgroundColor: getNodeColor(next).bg, color: getNodeColor(next).fg, borderColor: getNodeColor(next).fg }}
             onClick={() => setIsExpanded(!isExpanded)}
           >
             {hasChildren(next) && (
@@ -456,7 +563,7 @@ function ConditionNodeEditor({
             )}
             {getNodeIcon(next.type)}
             <div className="flex-1">
-              <div className="font-medium">
+              <div className="font-medium whitespace-pre-wrap break-words">
                 {next.description}
                 {citationMap.has(next.id) && (
                   <span className="ml-1.5 text-xs font-bold font-mono text-current select-none">[{citationMap.get(next.id)}]</span>
@@ -495,7 +602,7 @@ function ConditionNodeEditor({
                     <div key={cond.id} className="border-l-2 border-border pl-4">
                       <div className="flex items-center justify-between mb-2">
                         <Badge variant="outline" className="font-mono">
-                          {cond.description}
+                          <span className="whitespace-pre-wrap break-words">{cond.description}</span>
                           {citationMap.has(cond.id) && (
                             <span className="ml-1 text-xs font-bold text-current select-none">[{citationMap.get(cond.id)}]</span>
                           )}
@@ -597,7 +704,7 @@ function ConditionNodeEditor({
       )
     }
 
-    const nodeColors = getNodeColor(next.type)
+    const nodeColors = getNodeColor(next)
     return (
       <div>
         <div 
@@ -606,8 +713,8 @@ function ConditionNodeEditor({
         >
           {getNodeIcon(next.type)}
           <div className="flex-1">
-            <div className="font-medium">
-              {getNodeLabel(next)}
+            <div className="font-medium whitespace-pre-wrap break-words">
+              <span className="whitespace-pre-wrap break-words">{getNodeLabel(next)}</span>
               {citationMap.has(next.id) && (
                 <span className="ml-1.5 text-xs font-bold font-mono text-current select-none">[{citationMap.get(next.id)}]</span>
               )}

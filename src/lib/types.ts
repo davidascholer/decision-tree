@@ -1,4 +1,5 @@
 export type NodeType = 'decision' | 'outcome' | 'path-reference' | 'condition'
+export type OutcomeStatus = 'success' | 'fail' | 'neutral'
 
 export interface DecisionNode {
   id: string
@@ -13,6 +14,7 @@ export interface OutcomeNode {
   type: 'outcome'
   description: string
   note?: string
+  outcomeType?: OutcomeStatus
 }
 
 export interface PathReferenceNode {

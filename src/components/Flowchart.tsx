@@ -1,4 +1,4 @@
-import { DecisionPath, TreeNode, DecisionNode, ConditionNode } from '@/lib/types'
+import { DecisionPath, TreeNode, DecisionNode, ConditionNode, OutcomeStatus } from '@/lib/types'
 import { useEffect, useRef, useState, useMemo } from 'react'
 import { Button } from './ui/button'
 import { Switch } from './ui/switch'
@@ -31,6 +31,7 @@ interface FlowNode {
   conditionLabel?: string
   parent?: FlowNode
   level: number
+  outcomeType?: OutcomeStatus
 }
 
 interface Connection {
@@ -87,15 +88,51 @@ const NODE_CONFIG = {
   }
 }
 
+const OUTCOME_CONFIG = {
+  success: NODE_CONFIG.outcome,
+  fail: {
+    width: 180,
+    height: 70,
+    color: 'oklch(0.62 0.20 25)',
+    borderColor: 'oklch(0.44 0.20 25)',
+    textColor: 'oklch(0.98 0 0)',
+    borderRadius: 35,
+    shadowColor: 'oklch(0.44 0.20 25 / 0.3)',
+  },
+  neutral: {
+    width: 180,
+    height: 70,
+    color: 'oklch(0.58 0.10 235)',
+    borderColor: 'oklch(0.38 0.12 235)',
+    textColor: 'oklch(0.98 0 0)',
+    borderRadius: 35,
+    shadowColor: 'oklch(0.38 0.12 235 / 0.3)',
+  },
+}
+
 const HORIZONTAL_SPACING = 160
 const VERTICAL_SPACING = 140
 const CONDITION_VERTICAL_OFFSET = 80
 const ZOOM_IN_FACTOR = 1.1
 const ZOOM_OUT_FACTOR = 0.9
+const NODE_TEXT_FONT = '600 14px Space Grotesk, sans-serif'
+const NODE_TEXT_LINE_HEIGHT = 18
+const NODE_HORIZONTAL_PADDING = 14
+const NODE_VERTICAL_PADDING = 12
+const PATH_REFERENCE_SUBTITLE_HEIGHT = 14
+
+const NODE_MAX_TEXT_WIDTH: Record<FlowNode['type'], number> = {
+  decision: 320,
+  outcome: 300,
+  'path-reference': 300,
+  condition: 260,
+  root: 340,
+}
 
 export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const measureCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const animationFrameRef = useRef<number | null>(null)
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState({ x: 0, y: 0 })
@@ -128,6 +165,100 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
     return citation ? `${label} (${citation})` : label
   }
 
+  const getOutcomeConfig = (outcomeType?: OutcomeStatus) => {
+    return OUTCOME_CONFIG[outcomeType || 'neutral']
+  }
+
+  const getStyleConfigByType = (type: FlowNode['type'], outcomeType?: OutcomeStatus) => {
+    if (type === 'outcome') {
+      return getOutcomeConfig(outcomeType)
+    }
+    return NODE_CONFIG[type]
+  }
+
+  const getTreeNodeLabel = (node: TreeNode | DecisionPath) => {
+    if (node.type === 'path-reference') {
+      const referencedPath = paths.find(p => p.id === node.pathId)
+      return appendCitation(referencedPath?.name || 'Unknown Path', node.id)
+    }
+
+    return appendCitation(node.description, node.id)
+  }
+
+  const getMeasureContext = () => {
+    if (!measureCanvasRef.current) {
+      measureCanvasRef.current = document.createElement('canvas')
+    }
+    return measureCanvasRef.current.getContext('2d')
+  }
+
+  const getWrappedLinesForMeasurement = (text: string, maxWidth: number) => {
+    const ctx = getMeasureContext()
+    if (!ctx) return [text]
+
+    ctx.font = NODE_TEXT_FONT
+    const paragraphs = text.replace(/\r\n?/g, '\n').split('\n')
+    const lines: string[] = []
+
+    paragraphs.forEach(paragraph => {
+      if (paragraph.trim().length === 0) {
+        lines.push('')
+        return
+      }
+
+      const words = paragraph.split(/\s+/)
+      let currentLine = ''
+
+      words.forEach(word => {
+        const testLine = currentLine ? `${currentLine} ${word}` : word
+        const metrics = ctx.measureText(testLine)
+
+        if (metrics.width <= maxWidth) {
+          currentLine = testLine
+        } else {
+          if (currentLine) lines.push(currentLine)
+          currentLine = word
+        }
+      })
+
+      if (currentLine) lines.push(currentLine)
+    })
+
+    return lines.length > 0 ? lines : ['']
+  }
+
+  const getNodeDimensions = (type: FlowNode['type'], label: string, outcomeType?: OutcomeStatus) => {
+    const config = getStyleConfigByType(type, outcomeType)
+    const maxTextWidth = NODE_MAX_TEXT_WIDTH[type]
+    const lines = getWrappedLinesForMeasurement(label, maxTextWidth)
+    const ctx = getMeasureContext()
+
+    let longestLineWidth = 0
+    if (ctx) {
+      ctx.font = NODE_TEXT_FONT
+      lines.forEach(line => {
+        longestLineWidth = Math.max(longestLineWidth, ctx.measureText(line).width)
+      })
+    }
+
+    const subtitleHeight = type === 'path-reference' ? PATH_REFERENCE_SUBTITLE_HEIGHT : 0
+
+    const width = Math.max(
+      config.width,
+      Math.ceil(longestLineWidth + NODE_HORIZONTAL_PADDING * 2)
+    )
+    const height = Math.max(
+      config.height,
+      Math.ceil(lines.length * NODE_TEXT_LINE_HEIGHT + NODE_VERTICAL_PADDING * 2 + subtitleHeight)
+    )
+
+    return { width, height }
+  }
+
+  const getFlowNodeConfig = (node: FlowNode) => {
+    return getStyleConfigByType(node.type, node.outcomeType)
+  }
+
   const resolveTreeNode = (
     node: TreeNode | DecisionPath,
     visitedPaths: Set<string>
@@ -158,19 +289,24 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
     if (!resolved) return 0
 
     const currentNode = resolved.node
-    const config = NODE_CONFIG[currentNode.type] || NODE_CONFIG.decision
+    const nodeLabel = getTreeNodeLabel(currentNode)
+    const nodeDimensions = getNodeDimensions(
+      currentNode.type,
+      nodeLabel,
+      currentNode.type === 'outcome' ? (currentNode.outcomeType || 'neutral') : undefined
+    )
 
     if (currentNode.type === 'decision' && currentNode.conditions && currentNode.conditions.length > 0) {
       const childWidths = currentNode.conditions.map(condition => measureSubtreeWidth(condition, resolved.visitedPaths))
       const childrenWidth = childWidths.reduce((sum, width) => sum + width, 0) + (childWidths.length - 1) * HORIZONTAL_SPACING
-      return Math.max(config.width, childrenWidth)
+      return Math.max(nodeDimensions.width, childrenWidth)
     }
 
     if (currentNode.type === 'condition' && currentNode.next) {
-      return Math.max(config.width, measureSubtreeWidth(currentNode.next, resolved.visitedPaths))
+      return Math.max(nodeDimensions.width, measureSubtreeWidth(currentNode.next, resolved.visitedPaths))
     }
 
-    return config.width
+    return nodeDimensions.width
   }
 
   useEffect(() => {
@@ -298,24 +434,26 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
     if (!resolved) return null
 
     const currentNode = resolved.node
-    const config = NODE_CONFIG[currentNode.type] || NODE_CONFIG.decision
+    const nodeLabel = getTreeNodeLabel(currentNode)
+    const outcomeType = currentNode.type === 'outcome' ? (currentNode.outcomeType || 'neutral') : undefined
+    const nodeDimensions = getNodeDimensions(currentNode.type, nodeLabel, outcomeType)
     
     const flowNode: FlowNode = {
       id: currentNode.id,
       type: currentNode.type,
-      label: '',
+      label: nodeLabel,
       x,
       y,
-      width: config.width,
-      height: config.height,
+      width: nodeDimensions.width,
+      height: nodeDimensions.height,
       pathId: node.type === 'path-reference' ? node.pathId : undefined,
       children: [],
       parent,
-      level
+      level,
+      outcomeType
     }
 
     if (currentNode.type === 'decision') {
-      flowNode.label = appendCitation(currentNode.description, currentNode.id)
       if (currentNode.conditions && currentNode.conditions.length > 0) {
         const childWidths = currentNode.conditions.map(condition => measureSubtreeWidth(condition, resolved.visitedPaths))
         const totalWidth = childWidths.reduce((sum, width) => sum + width, 0) + (childWidths.length - 1) * HORIZONTAL_SPACING
@@ -324,7 +462,7 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
         currentNode.conditions.forEach((condition, index) => {
           const childWidth = childWidths[index]
           const childX = currentX + childWidth / 2
-          const childY = y + config.height / 2 + CONDITION_VERTICAL_OFFSET
+          const childY = y + flowNode.height / 2 + CONDITION_VERTICAL_OFFSET
           
           const conditionNode = buildFlowTree(condition, childX, childY, level + 1, flowNode, resolved.visitedPaths)
           if (conditionNode) {
@@ -336,19 +474,13 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
         })
       }
     } else if (currentNode.type === 'condition') {
-      flowNode.label = appendCitation(currentNode.description, currentNode.id)
       if (currentNode.next) {
-        const nextY = y + config.height / 2 + VERTICAL_SPACING
+        const nextY = y + flowNode.height / 2 + VERTICAL_SPACING
         const nextNode = buildFlowTree(currentNode.next, x, nextY, level + 1, flowNode, resolved.visitedPaths)
         if (nextNode) {
           flowNode.children.push(nextNode)
         }
       }
-    } else if (currentNode.type === 'outcome') {
-      flowNode.label = appendCitation(currentNode.description, currentNode.id)
-    } else if (currentNode.type === 'path-reference') {
-      const referencedPath = paths.find(p => p.id === node.pathId)
-      flowNode.label = appendCitation(referencedPath?.name || 'Unknown Path', currentNode.id)
     }
 
     return flowNode
@@ -357,15 +489,15 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
   const getAllNodes = (path: DecisionPath | undefined, allPaths: DecisionPath[]): FlowNode[] => {
     if (!path) return []
     
-    const rootConfig = NODE_CONFIG.root
+    const rootDimensions = getNodeDimensions('root', path.name)
     const rootNode: FlowNode = {
       id: 'root',
       type: 'root',
       label: path.name,
       x: 0,
       y: 0,
-      width: rootConfig.width,
-      height: rootConfig.height,
+      width: rootDimensions.width,
+      height: rootDimensions.height,
       children: [],
       level: 0
     }
@@ -373,7 +505,7 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
     const contentNode = buildFlowTree(
       path, 
       0, 
-      rootConfig.height / 2 + VERTICAL_SPACING, 
+      rootNode.height / 2 + VERTICAL_SPACING, 
       1,
       rootNode
     )
@@ -554,7 +686,7 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
   const drawNode = (ctx: CanvasRenderingContext2D, node: FlowNode, offsetX: number, offsetY: number) => {
     const x = node.x + offsetX
     const y = node.y + offsetY
-    const config = NODE_CONFIG[node.type]
+    const config = getFlowNodeConfig(node)
     const isHovered = hoveredNode === node.id
 
     ctx.save()
@@ -590,15 +722,18 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
     ctx.shadowBlur = 0
 
     ctx.fillStyle = config.textColor
-    ctx.font = '600 14px Space Grotesk, sans-serif'
+    ctx.font = NODE_TEXT_FONT
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
 
-    const maxWidth = node.width - 20
-    const lines = wrapText(ctx, node.label, maxWidth)
-    const lineHeight = 18
+    const maxWidth = node.width - NODE_HORIZONTAL_PADDING * 2
+    const lines = wrapText(ctx, node.label, maxWidth, Number.POSITIVE_INFINITY)
+    const lineHeight = NODE_TEXT_LINE_HEIGHT
     const totalHeight = lines.length * lineHeight
-    const startY = y - totalHeight / 2 + lineHeight / 2
+    const textCenterY = node.type === 'path-reference'
+      ? y - PATH_REFERENCE_SUBTITLE_HEIGHT / 2
+      : y
+    const startY = textCenterY - totalHeight / 2 + lineHeight / 2
 
     lines.forEach((line, i) => {
       ctx.fillText(line, x, startY + i * lineHeight)
@@ -614,24 +749,33 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
   }
 
   const wrapText = (ctx: CanvasRenderingContext2D, text: string, maxWidth: number, maxLines = 3): string[] => {
-    const words = text.split(' ')
+    const paragraphs = text.replace(/\r\n?/g, '\n').split('\n')
     const lines: string[] = []
-    let currentLine = ''
 
-    words.forEach(word => {
-      const testLine = currentLine ? `${currentLine} ${word}` : word
-      const metrics = ctx.measureText(testLine)
-      
-      if (metrics.width <= maxWidth) {
-        currentLine = testLine
-      } else {
-        if (currentLine) lines.push(currentLine)
-        currentLine = word
+    paragraphs.forEach(paragraph => {
+      if (paragraph.trim().length === 0) {
+        lines.push('')
+        return
       }
+
+      const words = paragraph.split(/\s+/)
+      let currentLine = ''
+
+      words.forEach(word => {
+        const testLine = currentLine ? `${currentLine} ${word}` : word
+        const metrics = ctx.measureText(testLine)
+        
+        if (metrics.width <= maxWidth) {
+          currentLine = testLine
+        } else {
+          if (currentLine) lines.push(currentLine)
+          currentLine = word
+        }
+      })
+
+      if (currentLine) lines.push(currentLine)
     })
-    
-    if (currentLine) lines.push(currentLine)
-    
+
     return Number.isFinite(maxLines) ? lines.slice(0, maxLines) : lines
   }
 
@@ -982,7 +1126,7 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
     nodes.forEach(node => {
       const x = node.x + offsetX
       const y = node.y + offsetY
-      const config = NODE_CONFIG[node.type]
+      const config = getFlowNodeConfig(node)
 
       const rectX = x - node.width / 2
       const rectY = y - node.height / 2
@@ -994,8 +1138,8 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
       <text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="middle" 
             fill="${config.textColor}" font-family="Space Grotesk, sans-serif" font-size="14" font-weight="600">\n`
 
-      const maxWidth = node.width - 20
-      const lines = wrapTextForSVG(node.label, maxWidth)
+      const maxWidth = node.width - NODE_HORIZONTAL_PADDING * 2
+      const lines = wrapTextForSVG(node.label, maxWidth, Number.POSITIVE_INFINITY)
       const lineHeight = 18
       const totalHeight = lines.length * lineHeight
       const startY = y - totalHeight / 2 + lineHeight / 2
@@ -1050,29 +1194,38 @@ export function Flowchart({ paths, selectedPathId }: FlowchartProps) {
   }
 
   const wrapTextForSVG = (text: string, maxWidth: number, maxLines = 3): string[] => {
-    const words = text.split(' ')
+    const paragraphs = text.replace(/\r\n?/g, '\n').split('\n')
     const lines: string[] = []
-    let currentLine = ''
 
     const canvas = document.createElement('canvas')
     const ctx = canvas.getContext('2d')
     if (!ctx) return [text]
-    ctx.font = '600 14px Space Grotesk, sans-serif'
+    ctx.font = NODE_TEXT_FONT
 
-    words.forEach(word => {
-      const testLine = currentLine ? `${currentLine} ${word}` : word
-      const metrics = ctx.measureText(testLine)
-      
-      if (metrics.width <= maxWidth) {
-        currentLine = testLine
-      } else {
-        if (currentLine) lines.push(currentLine)
-        currentLine = word
+    paragraphs.forEach(paragraph => {
+      if (paragraph.trim().length === 0) {
+        lines.push('')
+        return
       }
+
+      const words = paragraph.split(/\s+/)
+      let currentLine = ''
+
+      words.forEach(word => {
+        const testLine = currentLine ? `${currentLine} ${word}` : word
+        const metrics = ctx.measureText(testLine)
+        
+        if (metrics.width <= maxWidth) {
+          currentLine = testLine
+        } else {
+          if (currentLine) lines.push(currentLine)
+          currentLine = word
+        }
+      })
+
+      if (currentLine) lines.push(currentLine)
     })
-    
-    if (currentLine) lines.push(currentLine)
-    
+
     return Number.isFinite(maxLines) ? lines.slice(0, maxLines) : lines
   }
 
