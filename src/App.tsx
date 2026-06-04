@@ -175,6 +175,28 @@ function App() {
     );
   };
 
+  const countPathBranches = (path: DecisionPath): number => {
+    const countFromNode = (node: TreeNode): number => {
+      if (node.type === "condition") {
+        return 1 + (node.next ? countFromNode(node.next) : 0);
+      }
+
+      if (node.type === "decision") {
+        return (node.conditions || []).reduce(
+          (sum, condition) => sum + countFromNode(condition),
+          0,
+        );
+      }
+
+      return 0;
+    };
+
+    return (path.conditions || []).reduce(
+      (sum, condition) => sum + countFromNode(condition),
+      0,
+    );
+  };
+
   const createProject = (
     label: string,
     paths: DecisionPath[] = [],
@@ -1586,11 +1608,20 @@ function App() {
                             </div>
                           ) : (
                             <>
-                              <div className="font-medium truncate">
-                                {path.name}
+                              <div className="font-medium leading-snug" title={path.name}>
+                                <span className="flex flex-wrap gap-x-1">
+                                  {path.name.split(/\s+/).map((word, index) => (
+                                    <span
+                                      key={`${path.id}-word-${index}`}
+                                      className="max-w-full overflow-hidden text-ellipsis whitespace-nowrap"
+                                    >
+                                      {word}
+                                    </span>
+                                  ))}
+                                </span>
                               </div>
                               <div className="text-xs text-muted-foreground font-mono truncate">
-                                {path.id}
+                                {countPathBranches(path)} {countPathBranches(path) === 1 ? "branch" : "branches"}
                               </div>
                             </>
                           )}

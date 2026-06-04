@@ -27,6 +27,16 @@ import {
 import { useNodeColors } from "@/hooks/use-node-colors";
 import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 type DecisionLikeNode = DecisionPath | Extract<TreeNode, { type: "decision" }>;
 type ConditionNode = Extract<TreeNode, { type: "condition" }>;
@@ -46,6 +56,19 @@ const getAccordionContentClassName = (isExpanded: boolean) =>
 
 const getDropTargetClassName = (isActive: boolean) =>
   isActive ? "ring-2 ring-emerald-500/80 bg-emerald-500/10" : "";
+
+const hasDescendantBranches = (condition: ConditionNode): boolean => {
+  const next = condition.next;
+  if (!next || next.type !== "decision") {
+    return false;
+  }
+
+  if ((next.conditions || []).length > 0) {
+    return true;
+  }
+
+  return false;
+};
 
 const containsDecisionId = (
   node: TreeNode | undefined,
@@ -277,6 +300,8 @@ export function TreeNodeEditor({
   const [dragOverDecisionId, setDragOverDecisionId] = useState<string | null>(
     null,
   );
+  const [deleteBranchDialogOpen, setDeleteBranchDialogOpen] = useState(false);
+  const [branchToDeleteId, setBranchToDeleteId] = useState<string | null>(null);
   const [pathNoteDraft, setPathNoteDraft] = useState(path.pathNote || "");
   const colors = useNodeColors();
 
@@ -362,7 +387,7 @@ export function TreeNodeEditor({
     onUpdatePath({ ...path, ...updates } as DecisionPath);
   };
 
-  const handleDeleteCondition = (conditionId: string) => {
+  const deleteCondition = (conditionId: string) => {
     if (path.type === "decision") {
       const conditions = path.conditions || [];
 
@@ -372,6 +397,29 @@ export function TreeNodeEditor({
       });
       toast.success("Branch deleted");
     }
+  };
+
+  const requestDeleteCondition = (condition: ConditionNode) => {
+    if (!hasDescendantBranches(condition)) {
+      deleteCondition(condition.id);
+      return;
+    }
+
+    setBranchToDeleteId(condition.id);
+    setDeleteBranchDialogOpen(true);
+  };
+
+  const confirmDeleteCondition = () => {
+    if (branchToDeleteId) {
+      deleteCondition(branchToDeleteId);
+    }
+    setDeleteBranchDialogOpen(false);
+    setBranchToDeleteId(null);
+  };
+
+  const cancelDeleteCondition = () => {
+    setDeleteBranchDialogOpen(false);
+    setBranchToDeleteId(null);
   };
 
   const handleUpdateCondition = (
@@ -847,7 +895,7 @@ export function TreeNodeEditor({
                           <Button
                             size="sm"
                             variant="ghost"
-                            onClick={() => handleDeleteCondition(condition.id)}
+                            onClick={() => requestDeleteCondition(condition)}
                             className="h-8 w-8 p-0 text-destructive hover:text-destructive"
                             title="Delete branch"
                           >
@@ -949,6 +997,36 @@ export function TreeNodeEditor({
             initialConditionDescription={conditionBeingEdited.description}
           />
         )}
+
+        <AlertDialog
+          open={deleteBranchDialogOpen}
+          onOpenChange={(open) => {
+            if (!open) {
+              cancelDeleteCondition();
+            }
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Branch And Children?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This branch contains child branches. Deleting it will also remove
+                all of its children.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={cancelDeleteCondition}>
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={confirmDeleteCondition}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Delete Branch
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         {renderNotesSection()}
       </div>
@@ -1079,6 +1157,11 @@ function ConditionNodeEditor({
     string | null
   >(null);
   const [isExpanded, setIsExpanded] = useState(true);
+  const [deleteNestedBranchDialogOpen, setDeleteNestedBranchDialogOpen] =
+    useState(false);
+  const [nestedBranchToDeleteId, setNestedBranchToDeleteId] = useState<
+    string | null
+  >(null);
   const colors = useNodeColors();
 
   const hasChildren = (node: TreeNode): boolean => {
@@ -1097,6 +1180,47 @@ function ConditionNodeEditor({
 
   const handleUpdateNode = (updates: Partial<TreeNode>) => {
     onUpdateCondition({ ...condition, ...updates } as any);
+  };
+
+  const deleteNestedCondition = (conditionId: string) => {
+    if (!condition.next || condition.next.type !== "decision") return;
+
+    const nextDecision = condition.next;
+    const updatedConditions = (nextDecision.conditions || []).filter(
+      (c) => c.id !== conditionId,
+    );
+
+    onUpdateCondition({
+      ...condition,
+      next: {
+        ...nextDecision,
+        conditions: updatedConditions,
+      },
+    });
+    toast.success("Branch deleted");
+  };
+
+  const requestDeleteNestedCondition = (nestedCondition: ConditionNode) => {
+    if (!hasDescendantBranches(nestedCondition)) {
+      deleteNestedCondition(nestedCondition.id);
+      return;
+    }
+
+    setNestedBranchToDeleteId(nestedCondition.id);
+    setDeleteNestedBranchDialogOpen(true);
+  };
+
+  const confirmDeleteNestedCondition = () => {
+    if (nestedBranchToDeleteId) {
+      deleteNestedCondition(nestedBranchToDeleteId);
+    }
+    setDeleteNestedBranchDialogOpen(false);
+    setNestedBranchToDeleteId(null);
+  };
+
+  const cancelDeleteNestedCondition = () => {
+    setDeleteNestedBranchDialogOpen(false);
+    setNestedBranchToDeleteId(null);
   };
 
   const getNodeIcon = (type: TreeNode["type"]) => {
@@ -1283,19 +1407,7 @@ function ConditionNodeEditor({
                           <Button
                             size="sm"
                             variant="ghost"
-                            onClick={() => {
-                              const updatedConditions = (
-                                next.conditions || []
-                              ).filter((c) => c.id !== cond.id);
-                              onUpdateCondition({
-                                ...condition,
-                                next: {
-                                  ...next,
-                                  conditions: updatedConditions,
-                                },
-                              });
-                              toast.success("Branch deleted");
-                            }}
+                            onClick={() => requestDeleteNestedCondition(cond)}
                             className="h-8 w-8 p-0 text-destructive hover:text-destructive"
                             title="Delete branch"
                           >
@@ -1422,6 +1534,36 @@ function ConditionNodeEditor({
               }
             />
           )}
+
+          <AlertDialog
+            open={deleteNestedBranchDialogOpen}
+            onOpenChange={(open) => {
+              if (!open) {
+                cancelDeleteNestedCondition();
+              }
+            }}
+          >
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete Branch And Children?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This branch contains child branches. Deleting it will also
+                  remove all of its children.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel onClick={cancelDeleteNestedCondition}>
+                  Cancel
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={confirmDeleteNestedCondition}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  Delete Branch
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       );
     }
