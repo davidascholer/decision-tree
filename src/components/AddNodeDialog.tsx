@@ -145,6 +145,21 @@ export function AddNodeDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-4">
+          {initialConditionDescription !== undefined && (
+            <div className="space-y-2">
+              <Label htmlFor="incoming-condition">Condition</Label>
+              <Input
+                id="incoming-condition"
+                placeholder="Condition that leads to this node"
+                value={incomingConditionDescription}
+                onChange={(e) => setIncomingConditionDescription(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                This is the branch label that determines when this node is reached.
+              </p>
+            </div>
+          )}
+
           <div className="space-y-2">
             <Label htmlFor="node-type">Node Type</Label>
             <Select value={nodeType} onValueChange={(value: any) => setNodeType(value)} disabled={mode === 'edit' && !allowTypeChange}>
@@ -178,18 +193,6 @@ export function AddNodeDialog({
               </p>
             )}
           </div>
-
-            {initialConditionDescription !== undefined && (
-              <div className="space-y-2">
-                <Label htmlFor="incoming-condition">Condition</Label>
-                <Input
-                  id="incoming-condition"
-                  placeholder="Condition that leads to this node"
-                  value={incomingConditionDescription}
-                  onChange={(e) => setIncomingConditionDescription(e.target.value)}
-                />
-              </div>
-            )}
 
           {nodeType === 'decision' && (
             <div className="space-y-2">
