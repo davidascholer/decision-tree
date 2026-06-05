@@ -49,6 +49,7 @@ interface DraggedBranch {
 interface SwapDescriptionResult {
   updated: DecisionLikeNode;
   swappedDescription?: string;
+  swappedNote?: string;
 }
 
 const getAccordionContentClassName = (isExpanded: boolean) =>
@@ -227,6 +228,7 @@ const swapRootDescriptionIntoTarget = (
   node: DecisionLikeNode,
   targetDecisionId: string,
   rootDescription: string,
+  rootNote?: string,
 ): SwapDescriptionResult => {
   if (node.type !== "decision") {
     return { updated: node };
@@ -237,8 +239,10 @@ const swapRootDescriptionIntoTarget = (
       updated: {
         ...node,
         description: rootDescription,
+        note: rootNote,
       },
       swappedDescription: node.description,
+      swappedNote: node.note,
     };
   }
 
@@ -251,6 +255,7 @@ const swapRootDescriptionIntoTarget = (
       condition.next,
       targetDecisionId,
       rootDescription,
+      rootNote,
     );
     if (!result.swappedDescription) return condition;
 
@@ -453,7 +458,7 @@ export function TreeNodeEditor({
     setIsRootDragging(true);
     setDraggedBranch(null);
     setDragOverDecisionId(null);
-    toast.info("Moving the root will switch descriptions only");
+    toast.info("Moving the root will switch descriptions and notes");
   };
 
   const handleRootDragEnd = () => {
@@ -521,20 +526,22 @@ export function TreeNodeEditor({
       path,
       targetDecisionId,
       path.description,
+      path.note,
     );
     if (!result.swappedDescription) {
       handleRootDragEnd();
-      toast.error("Unable to switch root description");
+      toast.error("Unable to switch root details");
       return;
     }
 
     onUpdatePath({
       ...(result.updated as DecisionPath),
       description: result.swappedDescription,
+      note: result.swappedNote,
     });
 
     handleRootDragEnd();
-    toast.success("Root description switched");
+    toast.success("Root description and notes switched");
   };
 
   const handleDecisionDrop = (targetDecisionId: string) => {
@@ -835,10 +842,34 @@ export function TreeNodeEditor({
               <div className="ml-6 space-y-3">
                 {path.conditions.map((condition) => {
                   const isIncomplete = incompleteConditionIds.has(condition.id);
+                  const nestedDecisionTargetId =
+                    condition.next?.type === "decision" ? condition.next.id : null;
                   return (
                     <div
                       key={condition.id}
-                      className={`border-l-2 border-border pl-4 transition-opacity ${draggedBranch?.sourceConditionId === condition.id ? "opacity-40" : ""}`}
+                      className={`border-l-2 border-border pl-4 transition-opacity ${draggedBranch?.sourceConditionId === condition.id ? "opacity-40" : ""} ${nestedDecisionTargetId && dragOverDecisionId === nestedDecisionTargetId ? getDropTargetClassName(true) : ""}`}
+                      onDragEnter={(event) => {
+                        if (!nestedDecisionTargetId) return;
+                        event.preventDefault();
+                        event.stopPropagation();
+                        handleDecisionDragEnter(nestedDecisionTargetId);
+                      }}
+                      onDragLeave={(event) => {
+                        if (!nestedDecisionTargetId) return;
+                        event.stopPropagation();
+                        handleDecisionDragLeave(nestedDecisionTargetId);
+                      }}
+                      onDragOver={(event) => {
+                        if (!nestedDecisionTargetId) return;
+                        event.stopPropagation();
+                        handleDecisionDragOver(event, nestedDecisionTargetId);
+                      }}
+                      onDrop={(event) => {
+                        if (!nestedDecisionTargetId) return;
+                        event.preventDefault();
+                        event.stopPropagation();
+                        handleDecisionDrop(nestedDecisionTargetId);
+                      }}
                     >
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
@@ -1359,10 +1390,35 @@ function ConditionNodeEditor({
             <div className="min-h-0 space-y-2">
               {next.conditions && next.conditions.length > 0 && (
                 <div className="ml-6 space-y-3">
-                  {next.conditions.map((cond) => (
+                  {next.conditions.map((cond) => {
+                    const nestedDecisionTargetId =
+                      cond.next?.type === "decision" ? cond.next.id : null;
+                    return (
                     <div
                       key={cond.id}
-                      className={`border-l-2 border-border pl-4 transition-opacity ${draggedBranch?.sourceConditionId === cond.id ? "opacity-40" : ""}`}
+                      className={`border-l-2 border-border pl-4 transition-opacity ${draggedBranch?.sourceConditionId === cond.id ? "opacity-40" : ""} ${nestedDecisionTargetId && dragOverDecisionId === nestedDecisionTargetId ? getDropTargetClassName(true) : ""}`}
+                      onDragEnter={(event) => {
+                        if (!nestedDecisionTargetId) return;
+                        event.preventDefault();
+                        event.stopPropagation();
+                        onDecisionDragEnter(nestedDecisionTargetId);
+                      }}
+                      onDragLeave={(event) => {
+                        if (!nestedDecisionTargetId) return;
+                        event.stopPropagation();
+                        onDecisionDragLeave(nestedDecisionTargetId);
+                      }}
+                      onDragOver={(event) => {
+                        if (!nestedDecisionTargetId) return;
+                        event.stopPropagation();
+                        onDecisionDragOver(event, nestedDecisionTargetId);
+                      }}
+                      onDrop={(event) => {
+                        if (!nestedDecisionTargetId) return;
+                        event.preventDefault();
+                        event.stopPropagation();
+                        onDecisionDrop(nestedDecisionTargetId);
+                      }}
                     >
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
@@ -1445,7 +1501,8 @@ function ConditionNodeEditor({
                         />
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
 
