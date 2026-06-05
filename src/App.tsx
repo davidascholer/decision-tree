@@ -15,6 +15,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "./components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/ui/tabs";
 import { Input } from "./components/ui/input";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./components/ui/select";
+import {
   Plus,
   Trash,
   List,
@@ -97,10 +104,13 @@ function App() {
     undefined,
   );
   const [newProjectLabel, setNewProjectLabel] = useState("");
+  const [newProjectCloneSourceId, setNewProjectCloneSourceId] =
+    useState("blank");
   const [showNewProjectInput, setShowNewProjectInput] = useState(false);
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
   const [editingProjectLabel, setEditingProjectLabel] = useState("");
   const [newPathName, setNewPathName] = useState("");
+  const [newPathCloneSourceId, setNewPathCloneSourceId] = useState("blank");
   const [showNewPathInput, setShowNewPathInput] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [pathToDelete, setPathToDelete] = useState<{
@@ -205,6 +215,56 @@ function App() {
     kind: PROJECT_EXPORT_KIND,
     label,
     paths,
+  });
+
+  const cloneConditionNode = (
+    condition: Extract<TreeNode, { type: "condition" }>,
+    pathIdMap: Map<string, string>,
+  ): Extract<TreeNode, { type: "condition" }> => ({
+    ...condition,
+    id: generateId(),
+    next: condition.next ? cloneTreeNode(condition.next, pathIdMap) : undefined,
+  });
+
+  const cloneTreeNode = (
+    node: TreeNode,
+    pathIdMap: Map<string, string>,
+  ): TreeNode => {
+    switch (node.type) {
+      case "decision":
+        return {
+          ...node,
+          id: generateId(),
+          conditions: node.conditions?.map((condition) =>
+            cloneConditionNode(condition, pathIdMap),
+          ),
+        };
+      case "condition":
+        return cloneConditionNode(node, pathIdMap);
+      case "path-reference":
+        return {
+          ...node,
+          id: generateId(),
+          pathId: pathIdMap.get(node.pathId) ?? node.pathId,
+        };
+      case "outcome":
+      default:
+        return {
+          ...node,
+          id: generateId(),
+        };
+    }
+  };
+
+  const cloneDecisionPath = (
+    sourcePath: DecisionPath,
+    pathIdMap: Map<string, string>,
+  ): DecisionPath => ({
+    ...sourcePath,
+    id: pathIdMap.get(sourcePath.id) ?? generateId(),
+    conditions: sourcePath.conditions?.map((condition) =>
+      cloneConditionNode(condition, pathIdMap),
+    ),
   });
 
   const serializeProject = (project: DecisionProject) => ({
@@ -528,36 +588,92 @@ function App() {
   };
 
   const handleAddProject = () => {
-    if (!newProjectLabel.trim()) {
+    const cloneSourceProject =
+      newProjectCloneSourceId === "blank"
+        ? undefined
+        : currentProjects.find(
+            (project) => project.id === newProjectCloneSourceId,
+          );
+
+    const nextLabel =
+      newProjectLabel.trim() ||
+      (cloneSourceProject ? `${cloneSourceProject.label} Copy` : "");
+
+    if (!nextLabel) {
       return;
     }
 
-    const newProject = createProject(newProjectLabel.trim());
+    let clonedPaths: DecisionPath[] = [];
+
+    if (cloneSourceProject) {
+      const pathIdMap = new Map<string, string>();
+      cloneSourceProject.paths.forEach((path) => {
+        pathIdMap.set(path.id, generateId());
+      });
+
+      clonedPaths = cloneSourceProject.paths.map((path) =>
+        cloneDecisionPath(path, pathIdMap),
+      );
+    }
+
+    const newProject = createProject(nextLabel, clonedPaths);
     const newProjects = [...currentProjects, newProject];
     setProjects(newProjects);
     pushState(newProjects);
     setNewProjectLabel("");
+    setNewProjectCloneSourceId("blank");
     setShowNewProjectInput(false);
     openProject(newProject.id);
-    toast.success(`Project "${newProject.label}" created`);
+    toast.success(
+      cloneSourceProject
+        ? `Project "${newProject.label}" cloned`
+        : `Project "${newProject.label}" created`,
+    );
   };
 
   const handleAddPath = () => {
-    if (!currentProject || !newPathName.trim()) return;
+    if (!currentProject) return;
 
-    const newPath: DecisionPath = {
-      id: generateId(),
-      name: newPathName.trim(),
-      type: "decision",
-      description: "Start",
-    };
+    const cloneSourcePath =
+      newPathCloneSourceId === "blank"
+        ? undefined
+        : currentPaths.find((path) => path.id === newPathCloneSourceId);
+
+    const nextName =
+      newPathName.trim() || (cloneSourcePath ? `${cloneSourcePath.name} Copy` : "");
+
+    if (!nextName) return;
+
+    let newPath: DecisionPath;
+
+    if (cloneSourcePath) {
+      const pathIdMap = new Map<string, string>([
+        [cloneSourcePath.id, generateId()],
+      ]);
+      newPath = {
+        ...cloneDecisionPath(cloneSourcePath, pathIdMap),
+        name: nextName,
+      };
+    } else {
+      newPath = {
+        id: generateId(),
+        name: nextName,
+        type: "decision",
+        description: "Start",
+      };
+    }
 
     const newPaths = [...currentPaths, newPath];
     updateProjectPaths(currentProject.id, newPaths);
     setSelectedPathId(newPath.id);
     setNewPathName("");
+    setNewPathCloneSourceId("blank");
     setShowNewPathInput(false);
-    toast.success(`Path "${newPath.name}" created`);
+    toast.success(
+      cloneSourcePath
+        ? `Path "${newPath.name}" cloned`
+        : `Path "${newPath.name}" created`,
+    );
   };
 
   const handleDeletePath = (pathId: string) => {
@@ -1257,25 +1373,53 @@ function App() {
               </CardHeader>
               <CardContent className="space-y-4">
                 {showNewProjectInput && (
-                  <div className="flex gap-2">
-                    <Input
-                      placeholder="Project name..."
-                      value={newProjectLabel}
-                      onChange={(event) =>
-                        setNewProjectLabel(event.target.value)
-                      }
-                      onKeyDown={(event) =>
-                        event.key === "Enter" && handleAddProject()
-                      }
-                      autoFocus
-                    />
-                    <Button
-                      onClick={handleAddProject}
-                      disabled={!newProjectLabel.trim()}
-                    >
-                      <Plus />
-                      Create Project
-                    </Button>
+                  <div className="space-y-2">
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="Project name..."
+                        value={newProjectLabel}
+                        onChange={(event) =>
+                          setNewProjectLabel(event.target.value)
+                        }
+                        onKeyDown={(event) =>
+                          event.key === "Enter" && handleAddProject()
+                        }
+                        autoFocus
+                      />
+                      <Button
+                        onClick={handleAddProject}
+                        disabled={
+                          !newProjectLabel.trim() &&
+                          newProjectCloneSourceId === "blank"
+                        }
+                      >
+                        <Plus />
+                        Create Project
+                      </Button>
+                    </div>
+                    {currentProjects.length > 0 && (
+                      <div className="space-y-1">
+                        <p className="text-xs text-muted-foreground">
+                          Clone from existing project (optional)
+                        </p>
+                        <Select
+                          value={newProjectCloneSourceId}
+                          onValueChange={setNewProjectCloneSourceId}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="blank">Start Blank</SelectItem>
+                            {currentProjects.map((project) => (
+                              <SelectItem key={project.id} value={project.id}>
+                                {project.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -1529,25 +1673,53 @@ function App() {
                   </CardHeader>
                   <CardContent className="space-y-2">
                     {showNewPathInput && (
-                      <div className="flex gap-2 mb-4">
-                        <Input
-                          placeholder="Path name..."
-                          value={newPathName}
-                          onChange={(event) =>
-                            setNewPathName(event.target.value)
-                          }
-                          onKeyDown={(event) =>
-                            event.key === "Enter" && handleAddPath()
-                          }
-                          autoFocus
-                        />
-                        <Button
-                          size="sm"
-                          onClick={handleAddPath}
-                          disabled={!newPathName.trim()}
-                        >
-                          <Plus />
-                        </Button>
+                      <div className="space-y-2 mb-4">
+                        <div className="flex gap-2">
+                          <Input
+                            placeholder="Path name..."
+                            value={newPathName}
+                            onChange={(event) =>
+                              setNewPathName(event.target.value)
+                            }
+                            onKeyDown={(event) =>
+                              event.key === "Enter" && handleAddPath()
+                            }
+                            autoFocus
+                          />
+                          <Button
+                            size="sm"
+                            onClick={handleAddPath}
+                            disabled={
+                              !newPathName.trim() &&
+                              newPathCloneSourceId === "blank"
+                            }
+                          >
+                            <Plus />
+                          </Button>
+                        </div>
+                        {currentPaths.length > 0 && (
+                          <div className="space-y-1">
+                            <p className="text-xs text-muted-foreground">
+                              Clone from existing path (optional)
+                            </p>
+                            <Select
+                              value={newPathCloneSourceId}
+                              onValueChange={setNewPathCloneSourceId}
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="blank">Start Blank</SelectItem>
+                                {currentPaths.map((path) => (
+                                  <SelectItem key={path.id} value={path.id}>
+                                    {path.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
                       </div>
                     )}
 
