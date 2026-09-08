@@ -27,16 +27,6 @@ import {
 import { useNodeColors } from "@/hooks/use-node-colors";
 import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 
 type DecisionLikeNode = DecisionPath | Extract<TreeNode, { type: "decision" }>;
 type ConditionNode = Extract<TreeNode, { type: "condition" }>;
@@ -49,7 +39,6 @@ interface DraggedBranch {
 interface SwapDescriptionResult {
   updated: DecisionLikeNode;
   swappedDescription?: string;
-  swappedNote?: string;
 }
 
 const getAccordionContentClassName = (isExpanded: boolean) =>
@@ -57,19 +46,6 @@ const getAccordionContentClassName = (isExpanded: boolean) =>
 
 const getDropTargetClassName = (isActive: boolean) =>
   isActive ? "ring-2 ring-emerald-500/80 bg-emerald-500/10" : "";
-
-const hasDescendantBranches = (condition: ConditionNode): boolean => {
-  const next = condition.next;
-  if (!next || next.type !== "decision") {
-    return false;
-  }
-
-  if ((next.conditions || []).length > 0) {
-    return true;
-  }
-
-  return false;
-};
 
 const containsDecisionId = (
   node: TreeNode | undefined,
@@ -228,7 +204,6 @@ const swapRootDescriptionIntoTarget = (
   node: DecisionLikeNode,
   targetDecisionId: string,
   rootDescription: string,
-  rootNote?: string,
 ): SwapDescriptionResult => {
   if (node.type !== "decision") {
     return { updated: node };
@@ -239,10 +214,8 @@ const swapRootDescriptionIntoTarget = (
       updated: {
         ...node,
         description: rootDescription,
-        note: rootNote,
       },
       swappedDescription: node.description,
-      swappedNote: node.note,
     };
   }
 
@@ -255,7 +228,6 @@ const swapRootDescriptionIntoTarget = (
       condition.next,
       targetDecisionId,
       rootDescription,
-      rootNote,
     );
     if (!result.swappedDescription) return condition;
 
@@ -297,6 +269,8 @@ export function TreeNodeEditor({
   const [editingConditionId, setEditingConditionId] = useState<string | null>(
     null,
   );
+  const [continueAddDialogOpen, setContinueAddDialogOpen] = useState(false);
+  const [continueEditDialogOpen, setContinueEditDialogOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(true);
   const [draggedBranch, setDraggedBranch] = useState<DraggedBranch | null>(
     null,
@@ -305,8 +279,6 @@ export function TreeNodeEditor({
   const [dragOverDecisionId, setDragOverDecisionId] = useState<string | null>(
     null,
   );
-  const [deleteBranchDialogOpen, setDeleteBranchDialogOpen] = useState(false);
-  const [branchToDeleteId, setBranchToDeleteId] = useState<string | null>(null);
   const [pathNoteDraft, setPathNoteDraft] = useState(path.pathNote || "");
   const colors = useNodeColors();
 
@@ -343,6 +315,11 @@ export function TreeNodeEditor({
     if (node.type === "decision") {
       return (node.conditions && node.conditions.length > 0) || false;
     }
+    if (node.type === "condition-loop") {
+      return (
+        (node.conditions && node.conditions.length > 0) || !!node.continueNode
+      );
+    }
     if (node.type === "condition") {
       return !!node.next;
     }
@@ -366,13 +343,28 @@ export function TreeNodeEditor({
     nextNode: TreeNode,
     conditionDescription?: string,
   ) => {
-    if (path.type === "decision") {
-      const conditions = path.conditions || [];
-      const description = (conditionDescription || "").trim();
-      if (!description) {
-        toast.error("Condition label is required");
+    if (path.type === "decision" || path.type === "condition-loop") {
+      if (path.type === "condition-loop" && nextNode.type !== "outcome") {
+        toast.error("Condition loops can only contain outcome children.");
         return;
       }
+
+      const conditions = path.conditions || [];
+      const description = (
+        conditionDescription ||
+        nextNode.description ||
+        ""
+      ).trim();
+
+      if (!description) {
+        toast.error(
+          path.type === "condition-loop"
+            ? "Condition outcome description is required"
+            : "Condition label is required",
+        );
+        return;
+      }
+
       onUpdatePath({
         ...path,
         conditions: [
@@ -392,8 +384,8 @@ export function TreeNodeEditor({
     onUpdatePath({ ...path, ...updates } as DecisionPath);
   };
 
-  const deleteCondition = (conditionId: string) => {
-    if (path.type === "decision") {
+  const handleDeleteCondition = (conditionId: string) => {
+    if (path.type === "decision" || path.type === "condition-loop") {
       const conditions = path.conditions || [];
 
       onUpdatePath({
@@ -404,34 +396,20 @@ export function TreeNodeEditor({
     }
   };
 
-  const requestDeleteCondition = (condition: ConditionNode) => {
-    if (!hasDescendantBranches(condition)) {
-      deleteCondition(condition.id);
-      return;
-    }
-
-    setBranchToDeleteId(condition.id);
-    setDeleteBranchDialogOpen(true);
-  };
-
-  const confirmDeleteCondition = () => {
-    if (branchToDeleteId) {
-      deleteCondition(branchToDeleteId);
-    }
-    setDeleteBranchDialogOpen(false);
-    setBranchToDeleteId(null);
-  };
-
-  const cancelDeleteCondition = () => {
-    setDeleteBranchDialogOpen(false);
-    setBranchToDeleteId(null);
-  };
-
   const handleUpdateCondition = (
     conditionId: string,
     updatedCondition: any,
   ) => {
-    if (path.type === "decision") {
+    if (path.type === "decision" || path.type === "condition-loop") {
+      if (
+        path.type === "condition-loop" &&
+        updatedCondition?.next &&
+        updatedCondition.next.type !== "outcome"
+      ) {
+        toast.error("Condition loops can only contain outcome children.");
+        return;
+      }
+
       const conditions = path.conditions || [];
       onUpdatePath({
         ...path,
@@ -440,6 +418,23 @@ export function TreeNodeEditor({
         ),
       });
     }
+  };
+
+  const handleSetContinueNode = (node: TreeNode) => {
+    if (path.type !== "condition-loop") return;
+    onUpdatePath({ ...path, continueNode: node });
+  };
+
+  const handleDeleteContinueNode = () => {
+    if (path.type !== "condition-loop") return;
+    if (path.continueNode && hasChildren(path.continueNode)) {
+      toast.error(
+        "Cannot delete node with children. Delete all child nodes first.",
+      );
+      return;
+    }
+    onUpdatePath({ ...path, continueNode: undefined });
+    toast.success("Continue branch deleted");
   };
 
   const handleBranchDragStart = (
@@ -458,7 +453,7 @@ export function TreeNodeEditor({
     setIsRootDragging(true);
     setDraggedBranch(null);
     setDragOverDecisionId(null);
-    toast.info("Moving the root will switch descriptions and notes");
+    toast.info("Moving the root will switch descriptions only");
   };
 
   const handleRootDragEnd = () => {
@@ -526,22 +521,20 @@ export function TreeNodeEditor({
       path,
       targetDecisionId,
       path.description,
-      path.note,
     );
     if (!result.swappedDescription) {
       handleRootDragEnd();
-      toast.error("Unable to switch root details");
+      toast.error("Unable to switch root description");
       return;
     }
 
     onUpdatePath({
       ...(result.updated as DecisionPath),
       description: result.swappedDescription,
-      note: result.swappedNote,
     });
 
     handleRootDragEnd();
-    toast.success("Root description and notes switched");
+    toast.success("Root description switched");
   };
 
   const handleDecisionDrop = (targetDecisionId: string) => {
@@ -600,6 +593,8 @@ export function TreeNodeEditor({
         return (
           <DiamondsFour weight="fill" className="text-decision-foreground" />
         );
+      case "condition-loop":
+        return <GitBranch weight="fill" className="text-decision-foreground" />;
       case "condition":
         return <GitBranch weight="fill" className="text-accent-foreground" />;
       case "outcome":
@@ -615,6 +610,8 @@ export function TreeNodeEditor({
     switch (node.type) {
       case "decision":
         return "Decision";
+      case "condition-loop":
+        return "Condition Loop";
       case "condition":
         return "Condition";
       case "outcome":
@@ -630,6 +627,8 @@ export function TreeNodeEditor({
     switch (node.type) {
       case "decision":
         return { bg: colors.decision, fg: colors.decisionForeground };
+      case "condition-loop":
+        return { bg: colors.accent, fg: colors.accentForeground };
       case "condition":
         return { bg: colors.accent, fg: colors.accentForeground };
       case "outcome":
@@ -640,7 +639,8 @@ export function TreeNodeEditor({
   };
 
   const getNodeLabel = (n: TreeNode | DecisionPath) => {
-    if (n.type === "decision") return n.description;
+    if (n.type === "decision" || n.type === "condition-loop")
+      return n.description;
     if (n.type === "condition") return n.description;
     if (n.type === "outcome") return n.description;
     if (n.type === "path-reference") {
@@ -727,7 +727,7 @@ export function TreeNodeEditor({
     </>
   );
 
-  if (path.type === "decision") {
+  if (path.type === "decision" || path.type === "condition-loop") {
     const nodeColors = getNodeColor(path);
     const canDelete = !!onDeleteNode;
     const hasIncompleteConditions = incompleteConditionIds.size > 0;
@@ -842,34 +842,10 @@ export function TreeNodeEditor({
               <div className="ml-6 space-y-3">
                 {path.conditions.map((condition) => {
                   const isIncomplete = incompleteConditionIds.has(condition.id);
-                  const nestedDecisionTargetId =
-                    condition.next?.type === "decision" ? condition.next.id : null;
                   return (
                     <div
                       key={condition.id}
-                      className={`border-l-2 border-border pl-4 transition-opacity ${draggedBranch?.sourceConditionId === condition.id ? "opacity-40" : ""} ${nestedDecisionTargetId && dragOverDecisionId === nestedDecisionTargetId ? getDropTargetClassName(true) : ""}`}
-                      onDragEnter={(event) => {
-                        if (!nestedDecisionTargetId) return;
-                        event.preventDefault();
-                        event.stopPropagation();
-                        handleDecisionDragEnter(nestedDecisionTargetId);
-                      }}
-                      onDragLeave={(event) => {
-                        if (!nestedDecisionTargetId) return;
-                        event.stopPropagation();
-                        handleDecisionDragLeave(nestedDecisionTargetId);
-                      }}
-                      onDragOver={(event) => {
-                        if (!nestedDecisionTargetId) return;
-                        event.stopPropagation();
-                        handleDecisionDragOver(event, nestedDecisionTargetId);
-                      }}
-                      onDrop={(event) => {
-                        if (!nestedDecisionTargetId) return;
-                        event.preventDefault();
-                        event.stopPropagation();
-                        handleDecisionDrop(nestedDecisionTargetId);
-                      }}
+                      className={`border-l-2 border-border pl-4 transition-opacity ${draggedBranch?.sourceConditionId === condition.id ? "opacity-40" : ""}`}
                     >
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
@@ -926,7 +902,7 @@ export function TreeNodeEditor({
                           <Button
                             size="sm"
                             variant="ghost"
-                            onClick={() => requestDeleteCondition(condition)}
+                            onClick={() => handleDeleteCondition(condition.id)}
                             className="h-8 w-8 p-0 text-destructive hover:text-destructive"
                             title="Delete branch"
                           >
@@ -947,6 +923,11 @@ export function TreeNodeEditor({
                             citationMap={citationMap}
                             draggedBranch={draggedBranch}
                             dragOverDecisionId={dragOverDecisionId}
+                            parentNodeType={
+                              path.type === "condition-loop"
+                                ? "condition-loop"
+                                : "condition"
+                            }
                             onBranchDragStart={handleBranchDragStart}
                             onBranchDragEnd={handleBranchDragEnd}
                             onDecisionDragEnter={handleDecisionDragEnter}
@@ -970,9 +951,98 @@ export function TreeNodeEditor({
                 className="w-full"
               >
                 <Plus />
-                Add Branch
+                {path.type === "condition-loop"
+                  ? "Add Condition"
+                  : "Add Branch"}
               </Button>
             </div>
+
+            {path.type === "condition-loop" && (
+              <div className="ml-6 pl-4 mt-4 pt-4 border-t border-border/60 space-y-2">
+                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Continue Branch
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Where the loop goes once every condition above has passed.
+                </p>
+                {path.continueNode ? (
+                  <div className="border-l-2 border-border pl-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <Badge variant="outline" className="font-mono">
+                        <span className="whitespace-pre-wrap break-words">
+                          {getNodeLabel(path.continueNode)}
+                        </span>
+                      </Badge>
+                      <div className="flex gap-1">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setContinueEditDialogOpen(true)}
+                          className="h-8 w-8 p-0"
+                          title="Edit continue branch"
+                        >
+                          <Pencil />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={handleDeleteContinueNode}
+                          className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                          title={
+                            hasChildren(path.continueNode)
+                              ? "Cannot delete - has children"
+                              : "Delete continue branch"
+                          }
+                          disabled={hasChildren(path.continueNode)}
+                        >
+                          <Trash
+                            className={
+                              hasChildren(path.continueNode) ? "opacity-30" : ""
+                            }
+                          />
+                        </Button>
+                      </div>
+                    </div>
+                    <ConditionNodeEditor
+                      condition={{
+                        id: `${path.id}-continue`,
+                        type: "condition",
+                        description: "",
+                        next: path.continueNode,
+                      }}
+                      paths={paths}
+                      currentPathId={currentPathId}
+                      onUpdateCondition={(updated) => {
+                        if (updated.next) {
+                          handleSetContinueNode(updated.next);
+                        }
+                      }}
+                      depth={depth + 1}
+                      citationMap={citationMap}
+                      draggedBranch={draggedBranch}
+                      dragOverDecisionId={dragOverDecisionId}
+                      parentNodeType="condition"
+                      onBranchDragStart={handleBranchDragStart}
+                      onBranchDragEnd={handleBranchDragEnd}
+                      onDecisionDragEnter={handleDecisionDragEnter}
+                      onDecisionDragLeave={handleDecisionDragLeave}
+                      onDecisionDragOver={handleDecisionDragOver}
+                      onDecisionDrop={handleDecisionDrop}
+                    />
+                  </div>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setContinueAddDialogOpen(true)}
+                    className="w-full"
+                  >
+                    <Plus />
+                    Add Continue Branch
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -983,9 +1053,39 @@ export function TreeNodeEditor({
           paths={paths}
           currentPathId={currentPathId}
           mode="output"
-          parentNodeType="condition"
+          parentNodeType={
+            path.type === "condition-loop" ? "condition-loop" : "condition"
+          }
           initialConditionDescription=""
         />
+
+        {path.type === "condition-loop" && (
+          <>
+            <AddNodeDialog
+              open={continueAddDialogOpen}
+              onOpenChange={setContinueAddDialogOpen}
+              onAdd={(_, newNode) => handleSetContinueNode(newNode)}
+              paths={paths}
+              currentPathId={currentPathId}
+              mode="output"
+              parentNodeType="condition"
+            />
+
+            {path.continueNode && (
+              <AddNodeDialog
+                open={continueEditDialogOpen}
+                onOpenChange={setContinueEditDialogOpen}
+                onAdd={(_, updatedNode) => handleSetContinueNode(updatedNode)}
+                paths={paths}
+                currentPathId={currentPathId}
+                mode="edit"
+                initialNode={path.continueNode}
+                parentNodeType="condition"
+                allowTypeChange={!hasChildren(path.continueNode)}
+              />
+            )}
+          </>
+        )}
 
         <AddNodeDialog
           open={editDialogOpen}
@@ -1001,7 +1101,9 @@ export function TreeNodeEditor({
           currentPathId={currentPathId}
           mode="edit"
           initialNode={path as any}
-          parentNodeType="condition"
+          parentNodeType={
+            path.type === "condition-loop" ? "condition-loop" : "condition"
+          }
           allowTypeChange={!hasChildren(path)}
         />
 
@@ -1026,38 +1128,11 @@ export function TreeNodeEditor({
             mode="edit"
             initialNode={conditionBeingEdited.next}
             initialConditionDescription={conditionBeingEdited.description}
+            parentNodeType={
+              path.type === "condition-loop" ? "condition-loop" : "condition"
+            }
           />
         )}
-
-        <AlertDialog
-          open={deleteBranchDialogOpen}
-          onOpenChange={(open) => {
-            if (!open) {
-              cancelDeleteCondition();
-            }
-          }}
-        >
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Delete Branch And Children?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This branch contains child branches. Deleting it will also remove
-                all of its children.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel onClick={cancelDeleteCondition}>
-                Cancel
-              </AlertDialogCancel>
-              <AlertDialogAction
-                onClick={confirmDeleteCondition}
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              >
-                Delete Branch
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
 
         {renderNotesSection()}
       </div>
@@ -1153,6 +1228,7 @@ interface ConditionNodeEditorProps {
   citationMap: Map<string, number>;
   draggedBranch: DraggedBranch | null;
   dragOverDecisionId: string | null;
+  parentNodeType?: "condition" | "condition-loop";
   onBranchDragStart: (
     sourceDecisionId: string,
     sourceConditionId: string,
@@ -1176,6 +1252,7 @@ function ConditionNodeEditor({
   citationMap,
   draggedBranch,
   dragOverDecisionId,
+  parentNodeType = "condition",
   onBranchDragStart,
   onBranchDragEnd,
   onDecisionDragEnter,
@@ -1187,17 +1264,19 @@ function ConditionNodeEditor({
   const [editingNestedConditionId, setEditingNestedConditionId] = useState<
     string | null
   >(null);
+  const [continueAddOpen, setContinueAddOpen] = useState(false);
+  const [continueEditOpen, setContinueEditOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(true);
-  const [deleteNestedBranchDialogOpen, setDeleteNestedBranchDialogOpen] =
-    useState(false);
-  const [nestedBranchToDeleteId, setNestedBranchToDeleteId] = useState<
-    string | null
-  >(null);
   const colors = useNodeColors();
 
   const hasChildren = (node: TreeNode): boolean => {
     if (node.type === "decision") {
       return (node.conditions && node.conditions.length > 0) || false;
+    }
+    if (node.type === "condition-loop") {
+      return (
+        (node.conditions && node.conditions.length > 0) || !!node.continueNode
+      );
     }
     if (node.type === "condition") {
       return !!node.next;
@@ -1213,45 +1292,27 @@ function ConditionNodeEditor({
     onUpdateCondition({ ...condition, ...updates } as any);
   };
 
-  const deleteNestedCondition = (conditionId: string) => {
-    if (!condition.next || condition.next.type !== "decision") return;
-
-    const nextDecision = condition.next;
-    const updatedConditions = (nextDecision.conditions || []).filter(
-      (c) => c.id !== conditionId,
-    );
-
+  const handleSetLoopContinueNode = (loopNode: TreeNode, node: TreeNode) => {
+    if (loopNode.type !== "condition-loop") return;
     onUpdateCondition({
       ...condition,
-      next: {
-        ...nextDecision,
-        conditions: updatedConditions,
-      },
+      next: { ...loopNode, continueNode: node },
     });
-    toast.success("Branch deleted");
   };
 
-  const requestDeleteNestedCondition = (nestedCondition: ConditionNode) => {
-    if (!hasDescendantBranches(nestedCondition)) {
-      deleteNestedCondition(nestedCondition.id);
+  const handleDeleteLoopContinueNode = (loopNode: TreeNode) => {
+    if (loopNode.type !== "condition-loop") return;
+    if (loopNode.continueNode && hasChildren(loopNode.continueNode)) {
+      toast.error(
+        "Cannot delete node with children. Delete all child nodes first.",
+      );
       return;
     }
-
-    setNestedBranchToDeleteId(nestedCondition.id);
-    setDeleteNestedBranchDialogOpen(true);
-  };
-
-  const confirmDeleteNestedCondition = () => {
-    if (nestedBranchToDeleteId) {
-      deleteNestedCondition(nestedBranchToDeleteId);
-    }
-    setDeleteNestedBranchDialogOpen(false);
-    setNestedBranchToDeleteId(null);
-  };
-
-  const cancelDeleteNestedCondition = () => {
-    setDeleteNestedBranchDialogOpen(false);
-    setNestedBranchToDeleteId(null);
+    onUpdateCondition({
+      ...condition,
+      next: { ...loopNode, continueNode: undefined },
+    });
+    toast.success("Continue branch deleted");
   };
 
   const getNodeIcon = (type: TreeNode["type"]) => {
@@ -1260,6 +1321,8 @@ function ConditionNodeEditor({
         return (
           <DiamondsFour weight="fill" className="text-decision-foreground" />
         );
+      case "condition-loop":
+        return <GitBranch weight="fill" className="text-accent-foreground" />;
       case "condition":
         return <GitBranch weight="fill" className="text-accent-foreground" />;
       case "outcome":
@@ -1268,13 +1331,21 @@ function ConditionNodeEditor({
         );
       case "path-reference":
         return <FlowArrow weight="fill" className="text-path-ref-foreground" />;
+      default:
+        return <GitBranch weight="fill" className="text-accent-foreground" />;
     }
   };
 
   const getBranchTypeLabel = (node: TreeNode) => {
+    if (parentNodeType === "condition-loop" && node.type === "outcome") {
+      return "Condition";
+    }
+
     switch (node.type) {
       case "decision":
         return "Decision";
+      case "condition-loop":
+        return "Condition Loop";
       case "condition":
         return "Condition";
       case "outcome":
@@ -1298,21 +1369,35 @@ function ConditionNodeEditor({
     }
   };
 
+  const neutralConditionColors = {
+    bg: "oklch(0.58 0.10 235)",
+    fg: "oklch(0.98 0 0)",
+  };
+
   const getNodeColor = (node: TreeNode) => {
+    if (parentNodeType === "condition-loop" && node.type === "outcome") {
+      return neutralConditionColors;
+    }
+
     switch (node.type) {
       case "decision":
         return { bg: colors.decision, fg: colors.decisionForeground };
+      case "condition-loop":
+        return { bg: colors.accent, fg: colors.accentForeground };
       case "condition":
         return { bg: colors.accent, fg: colors.accentForeground };
       case "outcome":
         return getOutcomeColors(node);
       case "path-reference":
         return { bg: colors.pathRef, fg: colors.pathRefForeground };
+      default:
+        return { bg: colors.accent, fg: colors.accentForeground };
     }
   };
 
   const getNodeLabel = (n: TreeNode) => {
-    if (n.type === "decision") return n.description;
+    if (n.type === "decision" || n.type === "condition-loop")
+      return n.description;
     if (n.type === "condition") return n.description;
     if (n.type === "outcome") return n.description;
     if (n.type === "path-reference") {
@@ -1321,10 +1406,50 @@ function ConditionNodeEditor({
     }
   };
 
+  const renderOutcomeLikeNode = (next: TreeNode) => {
+    const nodeColors = getNodeColor(next);
+    const isConditionLoopChild =
+      parentNodeType === "condition-loop" && next.type === "outcome";
+
+    return (
+      <div className="space-y-2">
+        <div
+          className="flex items-center gap-3 p-3 rounded-lg border-2"
+          style={{
+            backgroundColor: nodeColors.bg,
+            color: nodeColors.fg,
+            borderColor: nodeColors.fg,
+          }}
+        >
+          {isConditionLoopChild ? (
+            <GitBranch weight="fill" className="text-accent-foreground" />
+          ) : (
+            getNodeIcon(next.type)
+          )}
+          <div className="flex-1">
+            <div className="font-medium whitespace-pre-wrap break-words">
+              <span className="whitespace-pre-wrap break-words">
+                {getNodeLabel(next)}
+              </span>
+              {citationMap.has(next.id) && (
+                <span className="ml-1.5 text-xs font-bold font-mono text-current select-none">
+                  [{citationMap.get(next.id)}]
+                </span>
+              )}
+            </div>
+            <div className="text-xs opacity-80 font-mono mt-1">
+              Branch Type: {getBranchTypeLabel(next)}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   if (condition.next) {
     const next = condition.next;
 
-    if (next.type === "decision") {
+    if (next.type === "decision" || next.type === "condition-loop") {
       const nestedConditionBeingEdited = (next.conditions || []).find(
         (c) => c.id === editingNestedConditionId,
       );
@@ -1390,35 +1515,10 @@ function ConditionNodeEditor({
             <div className="min-h-0 space-y-2">
               {next.conditions && next.conditions.length > 0 && (
                 <div className="ml-6 space-y-3">
-                  {next.conditions.map((cond) => {
-                    const nestedDecisionTargetId =
-                      cond.next?.type === "decision" ? cond.next.id : null;
-                    return (
+                  {next.conditions.map((cond) => (
                     <div
                       key={cond.id}
-                      className={`border-l-2 border-border pl-4 transition-opacity ${draggedBranch?.sourceConditionId === cond.id ? "opacity-40" : ""} ${nestedDecisionTargetId && dragOverDecisionId === nestedDecisionTargetId ? getDropTargetClassName(true) : ""}`}
-                      onDragEnter={(event) => {
-                        if (!nestedDecisionTargetId) return;
-                        event.preventDefault();
-                        event.stopPropagation();
-                        onDecisionDragEnter(nestedDecisionTargetId);
-                      }}
-                      onDragLeave={(event) => {
-                        if (!nestedDecisionTargetId) return;
-                        event.stopPropagation();
-                        onDecisionDragLeave(nestedDecisionTargetId);
-                      }}
-                      onDragOver={(event) => {
-                        if (!nestedDecisionTargetId) return;
-                        event.stopPropagation();
-                        onDecisionDragOver(event, nestedDecisionTargetId);
-                      }}
-                      onDrop={(event) => {
-                        if (!nestedDecisionTargetId) return;
-                        event.preventDefault();
-                        event.stopPropagation();
-                        onDecisionDrop(nestedDecisionTargetId);
-                      }}
+                      className={`border-l-2 border-border pl-4 transition-opacity ${draggedBranch?.sourceConditionId === cond.id ? "opacity-40" : ""}`}
                     >
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
@@ -1463,7 +1563,19 @@ function ConditionNodeEditor({
                           <Button
                             size="sm"
                             variant="ghost"
-                            onClick={() => requestDeleteNestedCondition(cond)}
+                            onClick={() => {
+                              const updatedConditions = (
+                                next.conditions || []
+                              ).filter((c) => c.id !== cond.id);
+                              onUpdateCondition({
+                                ...condition,
+                                next: {
+                                  ...next,
+                                  conditions: updatedConditions,
+                                },
+                              });
+                              toast.success("Branch deleted");
+                            }}
                             className="h-8 w-8 p-0 text-destructive hover:text-destructive"
                             title="Delete branch"
                           >
@@ -1492,6 +1604,11 @@ function ConditionNodeEditor({
                           citationMap={citationMap}
                           draggedBranch={draggedBranch}
                           dragOverDecisionId={dragOverDecisionId}
+                          parentNodeType={
+                            next.type === "condition-loop"
+                              ? "condition-loop"
+                              : "condition"
+                          }
                           onBranchDragStart={onBranchDragStart}
                           onBranchDragEnd={onBranchDragEnd}
                           onDecisionDragEnter={onDecisionDragEnter}
@@ -1501,8 +1618,7 @@ function ConditionNodeEditor({
                         />
                       </div>
                     </div>
-                    );
-                  })}
+                  ))}
                 </div>
               )}
 
@@ -1514,19 +1630,148 @@ function ConditionNodeEditor({
                   className="w-full"
                 >
                   <Plus />
-                  Add Branch
+                  {next.type === "condition-loop"
+                    ? "Add Condition"
+                    : "Add Branch"}
                 </Button>
               </div>
+
+              {next.type === "condition-loop" && (
+                <div className="ml-6 pl-4 mt-4 pt-4 border-t border-border/60 space-y-2">
+                  <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Continue Branch
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Where the loop goes once every condition above has passed.
+                  </p>
+                  {next.continueNode ? (
+                    <div className="border-l-2 border-border pl-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <Badge variant="outline" className="font-mono">
+                          <span className="whitespace-pre-wrap break-words">
+                            {getNodeLabel(next.continueNode)}
+                          </span>
+                        </Badge>
+                        <div className="flex gap-1">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setContinueEditOpen(true)}
+                            className="h-8 w-8 p-0"
+                            title="Edit continue branch"
+                          >
+                            <Pencil />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleDeleteLoopContinueNode(next)}
+                            className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                            title={
+                              hasChildren(next.continueNode)
+                                ? "Cannot delete - has children"
+                                : "Delete continue branch"
+                            }
+                            disabled={hasChildren(next.continueNode)}
+                          >
+                            <Trash
+                              className={
+                                hasChildren(next.continueNode)
+                                  ? "opacity-30"
+                                  : ""
+                              }
+                            />
+                          </Button>
+                        </div>
+                      </div>
+                      <ConditionNodeEditor
+                        condition={{
+                          id: `${next.id}-continue`,
+                          type: "condition",
+                          description: "",
+                          next: next.continueNode,
+                        }}
+                        paths={paths}
+                        currentPathId={currentPathId}
+                        onUpdateCondition={(updated) => {
+                          if (updated.next) {
+                            handleSetLoopContinueNode(next, updated.next);
+                          }
+                        }}
+                        depth={depth + 1}
+                        citationMap={citationMap}
+                        draggedBranch={draggedBranch}
+                        dragOverDecisionId={dragOverDecisionId}
+                        parentNodeType="condition"
+                        onBranchDragStart={onBranchDragStart}
+                        onBranchDragEnd={onBranchDragEnd}
+                        onDecisionDragEnter={onDecisionDragEnter}
+                        onDecisionDragLeave={onDecisionDragLeave}
+                        onDecisionDragOver={onDecisionDragOver}
+                        onDecisionDrop={onDecisionDrop}
+                      />
+                    </div>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setContinueAddOpen(true)}
+                      className="w-full"
+                    >
+                      <Plus />
+                      Add Continue Branch
+                    </Button>
+                  )}
+                </div>
+              )}
             </div>
           </div>
+
+          {next.type === "condition-loop" && (
+            <>
+              <AddNodeDialog
+                open={continueAddOpen}
+                onOpenChange={setContinueAddOpen}
+                onAdd={(_, newNode) => handleSetLoopContinueNode(next, newNode)}
+                paths={paths}
+                currentPathId={currentPathId}
+                mode="output"
+                parentNodeType="condition"
+              />
+
+              {next.continueNode && (
+                <AddNodeDialog
+                  open={continueEditOpen}
+                  onOpenChange={setContinueEditOpen}
+                  onAdd={(_, updatedNode) =>
+                    handleSetLoopContinueNode(next, updatedNode)
+                  }
+                  paths={paths}
+                  currentPathId={currentPathId}
+                  mode="edit"
+                  initialNode={next.continueNode}
+                  parentNodeType="condition"
+                  allowTypeChange={!hasChildren(next.continueNode)}
+                />
+              )}
+            </>
+          )}
 
           <AddNodeDialog
             open={addChildOpen}
             onOpenChange={setAddChildOpen}
             onAdd={(_, newNode, conditionDescription) => {
-              const description = (conditionDescription || "").trim();
+              const description = (
+                conditionDescription ||
+                newNode.description ||
+                ""
+              ).trim();
               if (!description) {
-                toast.error("Condition label is required");
+                toast.error(
+                  next.type === "condition-loop"
+                    ? "Condition label is required"
+                    : "Condition label is required",
+                );
                 return;
               }
               const conditions = next.conditions || [];
@@ -1549,7 +1794,9 @@ function ConditionNodeEditor({
             paths={paths}
             currentPathId={currentPathId}
             mode="output"
-            parentNodeType="condition"
+            parentNodeType={
+              next.type === "condition-loop" ? "condition-loop" : "condition"
+            }
             initialConditionDescription=""
           />
 
@@ -1589,72 +1836,16 @@ function ConditionNodeEditor({
               initialConditionDescription={
                 nestedConditionBeingEdited.description
               }
+              parentNodeType={
+                next.type === "condition-loop" ? "condition-loop" : "condition"
+              }
             />
           )}
-
-          <AlertDialog
-            open={deleteNestedBranchDialogOpen}
-            onOpenChange={(open) => {
-              if (!open) {
-                cancelDeleteNestedCondition();
-              }
-            }}
-          >
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Delete Branch And Children?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This branch contains child branches. Deleting it will also
-                  remove all of its children.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel onClick={cancelDeleteNestedCondition}>
-                  Cancel
-                </AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={confirmDeleteNestedCondition}
-                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                >
-                  Delete Branch
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
         </div>
       );
     }
 
-    const nodeColors = getNodeColor(next);
-    return (
-      <div>
-        <div
-          className="flex items-center gap-3 p-3 rounded-lg border-2"
-          style={{
-            backgroundColor: nodeColors.bg,
-            color: nodeColors.fg,
-            borderColor: nodeColors.fg,
-          }}
-        >
-          {getNodeIcon(next.type)}
-          <div className="flex-1">
-            <div className="font-medium whitespace-pre-wrap break-words">
-              <span className="whitespace-pre-wrap break-words">
-                {getNodeLabel(next)}
-              </span>
-              {citationMap.has(next.id) && (
-                <span className="ml-1.5 text-xs font-bold font-mono text-current select-none">
-                  [{citationMap.get(next.id)}]
-                </span>
-              )}
-            </div>
-            <div className="text-xs opacity-80 font-mono mt-1">
-              Branch Type: {getBranchTypeLabel(next)}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+    return renderOutcomeLikeNode(next);
   }
 
   return (

@@ -15,13 +15,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "./components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/ui/tabs";
 import { Input } from "./components/ui/input";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "./components/ui/select";
-import {
   Plus,
   Trash,
   List,
@@ -104,18 +97,20 @@ function App() {
     undefined,
   );
   const [newProjectLabel, setNewProjectLabel] = useState("");
-  const [newProjectCloneSourceId, setNewProjectCloneSourceId] =
-    useState("blank");
   const [showNewProjectInput, setShowNewProjectInput] = useState(false);
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
   const [editingProjectLabel, setEditingProjectLabel] = useState("");
   const [newPathName, setNewPathName] = useState("");
-  const [newPathCloneSourceId, setNewPathCloneSourceId] = useState("blank");
   const [showNewPathInput, setShowNewPathInput] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [pathToDelete, setPathToDelete] = useState<{
     id: string;
     name: string;
+  } | null>(null);
+  const [projectDeleteDialogOpen, setProjectDeleteDialogOpen] = useState(false);
+  const [projectToDelete, setProjectToDelete] = useState<{
+    id: string;
+    label: string;
   } | null>(null);
   const [editingPathId, setEditingPathId] = useState<string | null>(null);
   const [editingPathName, setEditingPathName] = useState("");
@@ -185,28 +180,6 @@ function App() {
     );
   };
 
-  const countPathBranches = (path: DecisionPath): number => {
-    const countFromNode = (node: TreeNode): number => {
-      if (node.type === "condition") {
-        return 1 + (node.next ? countFromNode(node.next) : 0);
-      }
-
-      if (node.type === "decision") {
-        return (node.conditions || []).reduce(
-          (sum, condition) => sum + countFromNode(condition),
-          0,
-        );
-      }
-
-      return 0;
-    };
-
-    return (path.conditions || []).reduce(
-      (sum, condition) => sum + countFromNode(condition),
-      0,
-    );
-  };
-
   const createProject = (
     label: string,
     paths: DecisionPath[] = [],
@@ -215,56 +188,6 @@ function App() {
     kind: PROJECT_EXPORT_KIND,
     label,
     paths,
-  });
-
-  const cloneConditionNode = (
-    condition: Extract<TreeNode, { type: "condition" }>,
-    pathIdMap: Map<string, string>,
-  ): Extract<TreeNode, { type: "condition" }> => ({
-    ...condition,
-    id: generateId(),
-    next: condition.next ? cloneTreeNode(condition.next, pathIdMap) : undefined,
-  });
-
-  const cloneTreeNode = (
-    node: TreeNode,
-    pathIdMap: Map<string, string>,
-  ): TreeNode => {
-    switch (node.type) {
-      case "decision":
-        return {
-          ...node,
-          id: generateId(),
-          conditions: node.conditions?.map((condition) =>
-            cloneConditionNode(condition, pathIdMap),
-          ),
-        };
-      case "condition":
-        return cloneConditionNode(node, pathIdMap);
-      case "path-reference":
-        return {
-          ...node,
-          id: generateId(),
-          pathId: pathIdMap.get(node.pathId) ?? node.pathId,
-        };
-      case "outcome":
-      default:
-        return {
-          ...node,
-          id: generateId(),
-        };
-    }
-  };
-
-  const cloneDecisionPath = (
-    sourcePath: DecisionPath,
-    pathIdMap: Map<string, string>,
-  ): DecisionPath => ({
-    ...sourcePath,
-    id: pathIdMap.get(sourcePath.id) ?? generateId(),
-    conditions: sourcePath.conditions?.map((condition) =>
-      cloneConditionNode(condition, pathIdMap),
-    ),
   });
 
   const serializeProject = (project: DecisionProject) => ({
@@ -588,92 +511,36 @@ function App() {
   };
 
   const handleAddProject = () => {
-    const cloneSourceProject =
-      newProjectCloneSourceId === "blank"
-        ? undefined
-        : currentProjects.find(
-            (project) => project.id === newProjectCloneSourceId,
-          );
-
-    const nextLabel =
-      newProjectLabel.trim() ||
-      (cloneSourceProject ? `${cloneSourceProject.label} Copy` : "");
-
-    if (!nextLabel) {
+    if (!newProjectLabel.trim()) {
       return;
     }
 
-    let clonedPaths: DecisionPath[] = [];
-
-    if (cloneSourceProject) {
-      const pathIdMap = new Map<string, string>();
-      cloneSourceProject.paths.forEach((path) => {
-        pathIdMap.set(path.id, generateId());
-      });
-
-      clonedPaths = cloneSourceProject.paths.map((path) =>
-        cloneDecisionPath(path, pathIdMap),
-      );
-    }
-
-    const newProject = createProject(nextLabel, clonedPaths);
+    const newProject = createProject(newProjectLabel.trim());
     const newProjects = [...currentProjects, newProject];
     setProjects(newProjects);
     pushState(newProjects);
     setNewProjectLabel("");
-    setNewProjectCloneSourceId("blank");
     setShowNewProjectInput(false);
     openProject(newProject.id);
-    toast.success(
-      cloneSourceProject
-        ? `Project "${newProject.label}" cloned`
-        : `Project "${newProject.label}" created`,
-    );
+    toast.success(`Project "${newProject.label}" created`);
   };
 
   const handleAddPath = () => {
-    if (!currentProject) return;
+    if (!currentProject || !newPathName.trim()) return;
 
-    const cloneSourcePath =
-      newPathCloneSourceId === "blank"
-        ? undefined
-        : currentPaths.find((path) => path.id === newPathCloneSourceId);
-
-    const nextName =
-      newPathName.trim() || (cloneSourcePath ? `${cloneSourcePath.name} Copy` : "");
-
-    if (!nextName) return;
-
-    let newPath: DecisionPath;
-
-    if (cloneSourcePath) {
-      const pathIdMap = new Map<string, string>([
-        [cloneSourcePath.id, generateId()],
-      ]);
-      newPath = {
-        ...cloneDecisionPath(cloneSourcePath, pathIdMap),
-        name: nextName,
-      };
-    } else {
-      newPath = {
-        id: generateId(),
-        name: nextName,
-        type: "decision",
-        description: "Start",
-      };
-    }
+    const newPath: DecisionPath = {
+      id: generateId(),
+      name: newPathName.trim(),
+      type: "decision",
+      description: "Start",
+    };
 
     const newPaths = [...currentPaths, newPath];
     updateProjectPaths(currentProject.id, newPaths);
     setSelectedPathId(newPath.id);
     setNewPathName("");
-    setNewPathCloneSourceId("blank");
     setShowNewPathInput(false);
-    toast.success(
-      cloneSourcePath
-        ? `Path "${newPath.name}" cloned`
-        : `Path "${newPath.name}" created`,
-    );
+    toast.success(`Path "${newPath.name}" created`);
   };
 
   const handleDeletePath = (pathId: string) => {
@@ -712,6 +579,42 @@ function App() {
   const cancelDeletePath = () => {
     setDeleteDialogOpen(false);
     setPathToDelete(null);
+  };
+
+  const handleDeleteProject = (projectId: string) => {
+    const project = currentProjects.find((item) => item.id === projectId);
+    if (!project) return;
+
+    setProjectToDelete({ id: projectId, label: project.label });
+    setProjectDeleteDialogOpen(true);
+  };
+
+  const confirmDeleteProject = () => {
+    if (!projectToDelete) return;
+
+    const newProjects = currentProjects.filter(
+      (project) => project.id !== projectToDelete.id,
+    );
+    setProjects(newProjects);
+    pushState(newProjects);
+
+    if (selectedProjectId === projectToDelete.id) {
+      const nextSelectedProject = newProjects[0];
+      setSelectedProjectId(nextSelectedProject?.id);
+      setSelectedPathId(nextSelectedProject?.paths[0]?.id);
+      if (!nextSelectedProject) {
+        setCurrentPage("projects");
+      }
+    }
+
+    toast.success(`Project "${projectToDelete.label}" deleted`);
+    setProjectDeleteDialogOpen(false);
+    setProjectToDelete(null);
+  };
+
+  const cancelDeleteProject = () => {
+    setProjectDeleteDialogOpen(false);
+    setProjectToDelete(null);
   };
 
   const handleUpdatePath = (pathId: string, updatedPath: DecisionPath) => {
@@ -971,6 +874,51 @@ function App() {
         onChange={handleImportJSON}
         className="hidden"
       />
+
+      <AlertDialog
+        open={projectDeleteDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            cancelDeleteProject();
+          }
+        }}
+      >
+        <AlertDialogContent className="border-2 border-accent/20">
+          <AlertDialogHeader>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-2 rounded-full bg-destructive/10">
+                <Warning
+                  size={24}
+                  className="text-destructive"
+                  weight="duotone"
+                />
+              </div>
+              <AlertDialogTitle className="text-xl">
+                Delete Project?
+              </AlertDialogTitle>
+            </div>
+            <AlertDialogDescription className="text-base">
+              Are you sure you want to delete{" "}
+              <span className="font-semibold text-foreground">
+                "{projectToDelete?.label}"
+              </span>
+              ? This action cannot be undone and all paths in this project will
+              be permanently removed.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={cancelDeleteProject}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeleteProject}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete Project
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent className="border-2 border-accent/20">
@@ -1373,53 +1321,25 @@ function App() {
               </CardHeader>
               <CardContent className="space-y-4">
                 {showNewProjectInput && (
-                  <div className="space-y-2">
-                    <div className="flex gap-2">
-                      <Input
-                        placeholder="Project name..."
-                        value={newProjectLabel}
-                        onChange={(event) =>
-                          setNewProjectLabel(event.target.value)
-                        }
-                        onKeyDown={(event) =>
-                          event.key === "Enter" && handleAddProject()
-                        }
-                        autoFocus
-                      />
-                      <Button
-                        onClick={handleAddProject}
-                        disabled={
-                          !newProjectLabel.trim() &&
-                          newProjectCloneSourceId === "blank"
-                        }
-                      >
-                        <Plus />
-                        Create Project
-                      </Button>
-                    </div>
-                    {currentProjects.length > 0 && (
-                      <div className="space-y-1">
-                        <p className="text-xs text-muted-foreground">
-                          Clone from existing project (optional)
-                        </p>
-                        <Select
-                          value={newProjectCloneSourceId}
-                          onValueChange={setNewProjectCloneSourceId}
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="blank">Start Blank</SelectItem>
-                            {currentProjects.map((project) => (
-                              <SelectItem key={project.id} value={project.id}>
-                                {project.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    )}
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Project name..."
+                      value={newProjectLabel}
+                      onChange={(event) =>
+                        setNewProjectLabel(event.target.value)
+                      }
+                      onKeyDown={(event) =>
+                        event.key === "Enter" && handleAddProject()
+                      }
+                      autoFocus
+                    />
+                    <Button
+                      onClick={handleAddProject}
+                      disabled={!newProjectLabel.trim()}
+                    >
+                      <Plus />
+                      Create Project
+                    </Button>
                   </div>
                 )}
 
@@ -1528,17 +1448,32 @@ function App() {
                                 {project.paths.length === 1 ? "path" : "paths"}
                               </p>
                             </div>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() =>
-                                handleExportSingleProjectJSON(project)
-                              }
-                              disabled={editingProjectId === project.id}
-                            >
-                              <Download />
-                              Export Project
-                            </Button>
+                            <div className="flex items-center gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() =>
+                                  handleExportSingleProjectJSON(project)
+                                }
+                                disabled={editingProjectId === project.id}
+                              >
+                                <Download />
+                                Export Project
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  handleDeleteProject(project.id);
+                                }}
+                                className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                                title="Delete project"
+                                disabled={editingProjectId === project.id}
+                              >
+                                <Trash />
+                              </Button>
+                            </div>
                           </div>
                         </CardHeader>
                         <CardContent className="flex items-center justify-between gap-4">
@@ -1673,53 +1608,25 @@ function App() {
                   </CardHeader>
                   <CardContent className="space-y-2">
                     {showNewPathInput && (
-                      <div className="space-y-2 mb-4">
-                        <div className="flex gap-2">
-                          <Input
-                            placeholder="Path name..."
-                            value={newPathName}
-                            onChange={(event) =>
-                              setNewPathName(event.target.value)
-                            }
-                            onKeyDown={(event) =>
-                              event.key === "Enter" && handleAddPath()
-                            }
-                            autoFocus
-                          />
-                          <Button
-                            size="sm"
-                            onClick={handleAddPath}
-                            disabled={
-                              !newPathName.trim() &&
-                              newPathCloneSourceId === "blank"
-                            }
-                          >
-                            <Plus />
-                          </Button>
-                        </div>
-                        {currentPaths.length > 0 && (
-                          <div className="space-y-1">
-                            <p className="text-xs text-muted-foreground">
-                              Clone from existing path (optional)
-                            </p>
-                            <Select
-                              value={newPathCloneSourceId}
-                              onValueChange={setNewPathCloneSourceId}
-                            >
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="blank">Start Blank</SelectItem>
-                                {currentPaths.map((path) => (
-                                  <SelectItem key={path.id} value={path.id}>
-                                    {path.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        )}
+                      <div className="flex gap-2 mb-4">
+                        <Input
+                          placeholder="Path name..."
+                          value={newPathName}
+                          onChange={(event) =>
+                            setNewPathName(event.target.value)
+                          }
+                          onKeyDown={(event) =>
+                            event.key === "Enter" && handleAddPath()
+                          }
+                          autoFocus
+                        />
+                        <Button
+                          size="sm"
+                          onClick={handleAddPath}
+                          disabled={!newPathName.trim()}
+                        >
+                          <Plus />
+                        </Button>
                       </div>
                     )}
 
@@ -1780,20 +1687,11 @@ function App() {
                             </div>
                           ) : (
                             <>
-                              <div className="font-medium leading-snug" title={path.name}>
-                                <span className="flex flex-wrap gap-x-1">
-                                  {path.name.split(/\s+/).map((word, index) => (
-                                    <span
-                                      key={`${path.id}-word-${index}`}
-                                      className="max-w-full overflow-hidden text-ellipsis whitespace-nowrap"
-                                    >
-                                      {word}
-                                    </span>
-                                  ))}
-                                </span>
+                              <div className="font-medium truncate">
+                                {path.name}
                               </div>
                               <div className="text-xs text-muted-foreground font-mono truncate">
-                                {countPathBranches(path)} {countPathBranches(path) === 1 ? "branch" : "branches"}
+                                {path.id}
                               </div>
                             </>
                           )}
@@ -1932,6 +1830,35 @@ function App() {
                                             that must be evaluated. Conditions
                                             are attached to decision nodes and
                                             represent different possible paths.
+                                          </div>
+                                        </div>
+                                      </div>
+
+                                      <div className="flex gap-3">
+                                        <div
+                                          className="flex-shrink-0 w-8 h-8 rounded-md flex items-center justify-center"
+                                          style={{
+                                            backgroundColor:
+                                              "oklch(0.68 0.18 280)",
+                                          }}
+                                        >
+                                          <GitBranch
+                                            weight="fill"
+                                            size={20}
+                                            style={{ color: "oklch(0.98 0 0)" }}
+                                          />
+                                        </div>
+                                        <div className="flex-1">
+                                          <div className="font-medium text-sm">
+                                            Condition Loop
+                                          </div>
+                                          <div className="text-xs text-muted-foreground">
+                                            A rule gate where every child
+                                            condition must pass before the
+                                            continue path is taken. The continue
+                                            path is explicit while the rejection
+                                            path loops back through the required
+                                            checks.
                                           </div>
                                         </div>
                                       </div>

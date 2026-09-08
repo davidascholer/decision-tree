@@ -33,7 +33,7 @@ interface AddNodeDialogProps {
   currentPathId: string;
   mode: "output" | "edit";
   initialNode?: TreeNode;
-  parentNodeType?: "decision" | "condition" | null;
+  parentNodeType?: "decision" | "condition" | "condition-loop" | null;
   allowTypeChange?: boolean;
   initialConditionDescription?: string;
 }
@@ -51,7 +51,7 @@ export function AddNodeDialog({
   initialConditionDescription,
 }: AddNodeDialogProps) {
   const [nodeType, setNodeType] = useState<
-    "decision" | "outcome" | "path-reference" | "condition"
+    "decision" | "condition-loop" | "outcome" | "path-reference" | "condition"
   >("condition");
   const [description, setDescription] = useState("");
   const [selectedPathId, setSelectedPathId] = useState("");
@@ -88,24 +88,37 @@ export function AddNodeDialog({
         setNodeType("condition");
       } else if (parentNodeType === "condition") {
         setNodeType("decision");
+      } else if (parentNodeType === "condition-loop") {
+        setNodeType("outcome");
       } else {
         setNodeType("condition");
       }
     }
   }, [open, initialNode, parentNodeType, initialConditionDescription]);
 
+  const isLoopConditionContext =
+    parentNodeType === "condition-loop" ||
+    (mode === "edit" && initialConditionDescription !== undefined);
+
   const handleSubmit = () => {
     let node: TreeNode;
 
     const trimmedNote = note.trim() || undefined;
 
-    if (nodeType === "decision") {
+    if (nodeType === "decision" || nodeType === "condition-loop") {
       node = {
         id: initialNode?.id || generateId(),
-        type: "decision",
+        type: nodeType,
         description: description.trim(),
         conditions:
-          initialNode?.type === "decision" ? initialNode.conditions : undefined,
+          initialNode?.type === "decision" ||
+          initialNode?.type === "condition-loop"
+            ? initialNode.conditions
+            : undefined,
+        continueNode:
+          initialNode?.type === "condition-loop"
+            ? initialNode.continueNode
+            : undefined,
         note: trimmedNote,
       };
     } else if (nodeType === "condition") {
@@ -124,7 +137,7 @@ export function AddNodeDialog({
         type: "outcome",
         description: description.trim(),
         note: trimmedNote,
-        outcomeType,
+        outcomeType: isLoopConditionContext ? "neutral" : outcomeType,
       };
     } else {
       node = {
@@ -140,12 +153,19 @@ export function AddNodeDialog({
   };
 
   const isValid = () => {
+    if (parentNodeType === "condition-loop" && nodeType !== "outcome") {
+      return false;
+    }
     if (
       initialConditionDescription !== undefined &&
       !incomingConditionDescription.trim()
     )
       return false;
-    if (nodeType === "decision" && !description.trim()) return false;
+    if (
+      (nodeType === "decision" || nodeType === "condition-loop") &&
+      !description.trim()
+    )
+      return false;
     if (nodeType === "condition" && !conditionDescription.trim()) return false;
     if (nodeType === "outcome" && !description.trim()) return false;
     if (nodeType === "path-reference" && !selectedPathId) return false;
@@ -164,12 +184,18 @@ export function AddNodeDialog({
       <DialogContent className="sm:max-w-[525px]">
         <DialogHeader>
           <DialogTitle>
-            {mode === "edit" ? "Edit Node" : "Add Output"}
+            {mode === "edit"
+              ? "Edit Node"
+              : parentNodeType === "condition-loop"
+                ? "Add Condition"
+                : "Add Output"}
           </DialogTitle>
           <DialogDescription>
             {mode === "edit"
               ? "Update the node details below."
-              : "Add an output to this decision point."}
+              : parentNodeType === "condition-loop"
+                ? "Add a condition to this loop."
+                : "Add an output to this decision point."}
           </DialogDescription>
         </DialogHeader>
 
@@ -192,59 +218,86 @@ export function AddNodeDialog({
             </div>
           )}
 
-          <div className="space-y-2">
-            <Label htmlFor="node-type">Branch Type</Label>
-            <Select
-              value={nodeType}
-              onValueChange={(value: any) => setNodeType(value)}
-              disabled={mode === "edit" && !allowTypeChange}
-            >
-              <SelectTrigger id="node-type">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {parentNodeType === "decision" && (
-                  <SelectItem value="condition">Condition</SelectItem>
-                )}
-                {parentNodeType === "condition" && (
-                  <>
-                    <SelectItem value="decision">Decision</SelectItem>
-                    <SelectItem value="outcome">Outcome</SelectItem>
-                    <SelectItem value="path-reference">
-                      Path Reference
-                    </SelectItem>
-                  </>
-                )}
-                {!parentNodeType && mode === "edit" && (
-                  <>
-                    <SelectItem value="decision">Decision</SelectItem>
-                    <SelectItem value="condition">Condition</SelectItem>
-                    <SelectItem value="outcome">Outcome</SelectItem>
-                    <SelectItem value="path-reference">
-                      Path Reference
-                    </SelectItem>
-                  </>
-                )}
-              </SelectContent>
-            </Select>
-            {mode === "edit" && !allowTypeChange && (
-              <p className="text-xs text-muted-foreground">
-                Branch type cannot be changed after creation. Delete and
-                recreate if needed.
-              </p>
-            )}
-          </div>
-
-          {nodeType === "decision" && (
+          {parentNodeType !== "condition-loop" && (
             <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
+              <Label htmlFor="node-type">Branch Type</Label>
+              <Select
+                value={nodeType}
+                onValueChange={(value: any) => setNodeType(value)}
+                disabled={mode === "edit" && !allowTypeChange}
+              >
+                <SelectTrigger id="node-type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {parentNodeType === "decision" && (
+                    <>
+                      <SelectItem value="condition">Condition</SelectItem>
+                      <SelectItem value="condition-loop">
+                        Condition Loop
+                      </SelectItem>
+                    </>
+                  )}
+                  {parentNodeType === "condition" && (
+                    <>
+                      <SelectItem value="decision">Decision</SelectItem>
+                      <SelectItem value="condition-loop">
+                        Condition Loop
+                      </SelectItem>
+                      <SelectItem value="outcome">Outcome</SelectItem>
+                      <SelectItem value="path-reference">
+                        Path Reference
+                      </SelectItem>
+                    </>
+                  )}
+                  {!parentNodeType && mode === "edit" && (
+                    <>
+                      <SelectItem value="decision">Decision</SelectItem>
+                      <SelectItem value="condition-loop">
+                        Condition Loop
+                      </SelectItem>
+                      <SelectItem value="condition">Condition</SelectItem>
+                      <SelectItem value="outcome">Outcome</SelectItem>
+                      <SelectItem value="path-reference">
+                        Path Reference
+                      </SelectItem>
+                    </>
+                  )}
+                </SelectContent>
+              </Select>
+              {mode === "edit" && !allowTypeChange && (
+                <p className="text-xs text-muted-foreground">
+                  Branch type cannot be changed after creation. Delete and
+                  recreate if needed.
+                </p>
+              )}
+            </div>
+          )}
+
+          {(nodeType === "decision" || nodeType === "condition-loop") && (
+            <div className="space-y-2">
+              <Label htmlFor="description">
+                {nodeType === "condition-loop"
+                  ? "Condition Loop Rule"
+                  : "Description"}
+              </Label>
               <Textarea
                 id="description"
-                placeholder="What question should this decision answer?"
+                placeholder={
+                  nodeType === "condition-loop"
+                    ? "All required checks must pass before continuing..."
+                    : "What question should this decision answer?"
+                }
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 rows={3}
               />
+              {nodeType === "condition-loop" && (
+                <p className="text-xs text-muted-foreground">
+                  This loop requires every child condition to pass before the
+                  continue path is taken.
+                </p>
+              )}
             </div>
           )}
 
@@ -263,33 +316,43 @@ export function AddNodeDialog({
           {nodeType === "outcome" && (
             <>
               <div className="space-y-2">
-                <Label htmlFor="description">Outcome Description</Label>
+                <Label htmlFor="description">
+                  {isLoopConditionContext
+                    ? "Condition Description"
+                    : "Outcome Description"}
+                </Label>
                 <Textarea
                   id="description"
-                  placeholder="Describe the final outcome"
+                  placeholder={
+                    isLoopConditionContext
+                      ? "Describe the condition outcome"
+                      : "Describe the final outcome"
+                  }
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   rows={3}
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="outcome-type">Outcome Type</Label>
-                <Select
-                  value={outcomeType}
-                  onValueChange={(value: OutcomeStatus) =>
-                    setOutcomeType(value)
-                  }
-                >
-                  <SelectTrigger id="outcome-type">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="neutral">Neutral</SelectItem>
-                    <SelectItem value="success">Success</SelectItem>
-                    <SelectItem value="fail">Fail</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              {!isLoopConditionContext && (
+                <div className="space-y-2">
+                  <Label htmlFor="outcome-type">Outcome Type</Label>
+                  <Select
+                    value={outcomeType}
+                    onValueChange={(value: OutcomeStatus) =>
+                      setOutcomeType(value)
+                    }
+                  >
+                    <SelectTrigger id="outcome-type">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="neutral">Neutral</SelectItem>
+                      <SelectItem value="success">Success</SelectItem>
+                      <SelectItem value="fail">Fail</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </>
           )}
 

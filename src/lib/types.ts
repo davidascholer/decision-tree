@@ -1,59 +1,83 @@
-export type NodeType = 'decision' | 'outcome' | 'path-reference' | 'condition'
-export type OutcomeStatus = 'success' | 'fail' | 'neutral'
+export type NodeType =
+  | "decision"
+  | "outcome"
+  | "path-reference"
+  | "condition"
+  | "condition-loop";
+export type OutcomeStatus = "success" | "fail" | "neutral";
 
 export interface DecisionNode {
-  id: string
-  type: 'decision'
-  description: string
-  conditions?: ConditionNode[]
-  note?: string
+  id: string;
+  type: "decision";
+  description: string;
+  conditions?: ConditionNode[];
+  note?: string;
+}
+
+export interface ConditionLoopNode {
+  id: string;
+  type: "condition-loop";
+  description: string;
+  conditions?: ConditionNode[];
+  continueNode?: TreeNode;
+  note?: string;
 }
 
 export interface OutcomeNode {
-  id: string
-  type: 'outcome'
-  description: string
-  note?: string
-  outcomeType?: OutcomeStatus
+  id: string;
+  type: "outcome";
+  description: string;
+  note?: string;
+  outcomeType?: OutcomeStatus;
 }
 
 export interface PathReferenceNode {
-  id: string
-  type: 'path-reference'
-  pathId: string
-  note?: string
+  id: string;
+  type: "path-reference";
+  pathId: string;
+  note?: string;
 }
 
 export interface ConditionNode {
-  id: string
-  type: 'condition'
-  description: string
-  next?: TreeNode
-  note?: string
+  id: string;
+  type: "condition";
+  description: string;
+  next?: TreeNode;
+  note?: string;
 }
 
-export type TreeNode = DecisionNode | OutcomeNode | PathReferenceNode | ConditionNode
+export type TreeNode =
+  | DecisionNode
+  | ConditionLoopNode
+  | OutcomeNode
+  | PathReferenceNode
+  | ConditionNode;
 
-export type DecisionPath = (DecisionNode | OutcomeNode | PathReferenceNode) & {
-  name: string
-  pathNote?: string
-}
+export type DecisionPath = (
+  | DecisionNode
+  | ConditionLoopNode
+  | OutcomeNode
+  | PathReferenceNode
+) & {
+  name: string;
+  pathNote?: string;
+};
 
 export interface DecisionProject {
-  id: string
-  kind: 'project'
-  label: string
-  paths: DecisionPath[]
+  id: string;
+  kind: "project";
+  label: string;
+  paths: DecisionPath[];
 }
 
 export interface DecisionTreeData {
-  paths: DecisionPath[]
+  paths: DecisionPath[];
 }
 
 export interface SaveHistoryEntry {
-  id: string
-  timestamp: Date
-  pathCount: number
-  totalNodes: number
-  action?: string
+  id: string;
+  timestamp: Date;
+  pathCount: number;
+  totalNodes: number;
+  action?: string;
 }

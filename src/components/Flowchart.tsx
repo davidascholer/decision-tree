@@ -43,7 +43,13 @@ interface FlowchartProps {
 
 interface FlowNode {
   id: string;
-  type: "decision" | "outcome" | "path-reference" | "condition" | "root";
+  type:
+    | "decision"
+    | "condition-loop"
+    | "outcome"
+    | "path-reference"
+    | "condition"
+    | "root";
   label: string;
   x: number;
   y: number;
@@ -55,12 +61,16 @@ interface FlowNode {
   parent?: FlowNode;
   level: number;
   outcomeType?: OutcomeStatus;
+  visualType?: FlowNode["type"];
 }
 
 interface Connection {
   from: FlowNode;
   to: FlowNode;
   label?: string;
+  fromAnchor?: { x: number; y: number };
+  toAnchor?: { x: number; y: number };
+  waypoints?: { x: number; y: number }[];
 }
 
 const NODE_CONFIG = {
@@ -72,6 +82,15 @@ const NODE_CONFIG = {
     textColor: "oklch(0.98 0 0)",
     borderRadius: 8,
     shadowColor: "oklch(0.45 0.18 195 / 0.3)",
+  },
+  "condition-loop": {
+    width: 200,
+    height: 90,
+    color: "oklch(0.68 0.18 280)",
+    borderColor: "oklch(0.42 0.20 280)",
+    textColor: "oklch(0.98 0 0)",
+    borderRadius: 8,
+    shadowColor: "oklch(0.42 0.20 280 / 0.3)",
   },
   outcome: {
     width: 180,
@@ -148,6 +167,7 @@ const PATH_REFERENCE_SUBTITLE_HEIGHT = 14;
 
 const NODE_MAX_TEXT_WIDTH: Record<FlowNode["type"], number> = {
   decision: 320,
+  "condition-loop": 320,
   outcome: 300,
   "path-reference": 300,
   condition: 260,
@@ -202,20 +222,40 @@ export function Flowchart({
     return OUTCOME_CONFIG[outcomeType || "neutral"];
   };
 
+  const getVisualNodeType = (
+    type: FlowNode["type"],
+    parentType?: FlowNode["type"],
+  ) => {
+    if (type === "condition-loop") {
+      return "decision" as const;
+    }
+    if (type === "condition" && parentType === "condition-loop") {
+      return "condition" as const;
+    }
+    return type;
+  };
+
   const getStyleConfigByType = (
     type: FlowNode["type"],
     outcomeType?: OutcomeStatus,
+    parentType?: FlowNode["type"],
   ) => {
-    if (type === "outcome") {
+    const visualType = getVisualNodeType(type, parentType);
+
+    if (visualType === "outcome") {
       return getOutcomeConfig(outcomeType);
     }
-    return NODE_CONFIG[type];
+
+    return NODE_CONFIG[visualType] || NODE_CONFIG.decision;
   };
 
   const getTreeNodeLabel = (node: TreeNode | DecisionPath) => {
     if (node.type === "path-reference") {
       const referencedPath = paths.find((p) => p.id === node.pathId);
       return appendCitation(referencedPath?.name || "Unknown Path", node.id);
+    }
+    if (node.type === "condition-loop") {
+      return appendCitation(node.description, node.id);
     }
 
     return appendCitation(node.description, node.id);
@@ -267,9 +307,11 @@ export function Flowchart({
     type: FlowNode["type"],
     label: string,
     outcomeType?: OutcomeStatus,
+    parentType?: FlowNode["type"],
   ) => {
-    const config = getStyleConfigByType(type, outcomeType);
-    const maxTextWidth = NODE_MAX_TEXT_WIDTH[type];
+    const visualType = getVisualNodeType(type, parentType);
+    const config = getStyleConfigByType(type, outcomeType, parentType);
+    const maxTextWidth = NODE_MAX_TEXT_WIDTH[visualType];
     const lines = getWrappedLinesForMeasurement(label, maxTextWidth);
     const ctx = getMeasureContext();
 
@@ -304,7 +346,13 @@ export function Flowchart({
   };
 
   const getFlowNodeConfig = (node: FlowNode) => {
-    return getStyleConfigByType(node.type, node.outcomeType);
+    const visualType =
+      node.visualType ?? getVisualNodeType(node.type, node.parent?.type);
+    return getStyleConfigByType(
+      visualType,
+      node.outcomeType,
+      node.parent?.type,
+    );
   };
 
   const resolveTreeNode = (
@@ -358,6 +406,21 @@ export function Flowchart({
         childWidths.reduce((sum, width) => sum + width, 0) +
         (childWidths.length - 1) * HORIZONTAL_SPACING;
       return Math.max(nodeDimensions.width, childrenWidth);
+    }
+
+    if (currentNode.type === "condition-loop") {
+      const childWidths = (currentNode.conditions || []).map((condition) =>
+        measureSubtreeWidth(condition, resolved.visitedPaths),
+      );
+      const childrenWidth =
+        childWidths.length > 0
+          ? childWidths.reduce((sum, width) => sum + width, 0) +
+            (childWidths.length - 1) * HORIZONTAL_SPACING
+          : 0;
+      const continueWidth = currentNode.continueNode
+        ? measureSubtreeWidth(currentNode.continueNode, resolved.visitedPaths)
+        : 0;
+      return Math.max(nodeDimensions.width, childrenWidth, continueWidth);
     }
 
     if (currentNode.type === "condition" && currentNode.next) {
@@ -514,14 +577,21 @@ export function Flowchart({
 
     const currentNode = resolved.node;
     const nodeLabel = getTreeNodeLabel(currentNode);
+    const loopOutcome =
+      currentNode.type === "condition" && currentNode.next?.type === "outcome"
+        ? currentNode.next
+        : undefined;
     const outcomeType =
       currentNode.type === "outcome"
         ? currentNode.outcomeType || "neutral"
-        : undefined;
+        : loopOutcome?.outcomeType || "neutral";
+    const isLoopCondition =
+      currentNode.type === "condition" && parent?.type === "condition-loop";
     const nodeDimensions = getNodeDimensions(
       currentNode.type,
       nodeLabel,
       outcomeType,
+      parent?.type,
     );
 
     const flowNode: FlowNode = {
@@ -530,16 +600,97 @@ export function Flowchart({
       label: nodeLabel,
       x,
       y,
-      width: nodeDimensions.width,
-      height: nodeDimensions.height,
+      width: isLoopCondition
+        ? getNodeDimensions("outcome", nodeLabel, "neutral").width
+        : nodeDimensions.width,
+      height: isLoopCondition
+        ? getNodeDimensions("outcome", nodeLabel, "neutral").height
+        : nodeDimensions.height,
       pathId: node.type === "path-reference" ? node.pathId : undefined,
       children: [],
       parent,
       level,
       outcomeType,
+      visualType: getVisualNodeType(currentNode.type, parent?.type),
     };
 
-    if (currentNode.type === "decision") {
+    if (currentNode.type === "condition-loop") {
+      if (currentNode.conditions && currentNode.conditions.length > 0) {
+        const childWidths = currentNode.conditions.map((condition) =>
+          measureSubtreeWidth(condition, resolved.visitedPaths),
+        );
+        const totalWidth =
+          childWidths.reduce((sum, width) => sum + width, 0) +
+          (childWidths.length - 1) * HORIZONTAL_SPACING;
+        let currentX = x - totalWidth / 2;
+
+        currentNode.conditions.forEach((condition, index) => {
+          const childWidth = childWidths[index];
+          const childX = currentX + childWidth / 2;
+          const childY = y + flowNode.height / 2 + CONDITION_VERTICAL_OFFSET;
+
+          const conditionNode = buildFlowTree(
+            condition,
+            childX,
+            childY,
+            level + 1,
+            flowNode,
+            resolved.visitedPaths,
+          );
+
+          if (conditionNode) {
+            conditionNode.conditionLabel = condition.description;
+            flowNode.children.push(conditionNode);
+          }
+
+          currentX += childWidth + HORIZONTAL_SPACING;
+        });
+      }
+
+      if (currentNode.continueNode) {
+        const continueNode = currentNode.continueNode;
+        const continueLabel = getTreeNodeLabel(continueNode);
+        const continueDimensions = getNodeDimensions(
+          continueNode.type,
+          continueLabel,
+          continueNode.type === "outcome"
+            ? continueNode.outcomeType || "neutral"
+            : undefined,
+        );
+
+        // Clear every condition's label AND description box before dropping
+        // to the continue branch, since either row can wrap onto extra
+        // lines and grow taller than the constants below assume.
+        const getSubtreeMaxBottom = (node: FlowNode): number => {
+          let max = node.y + node.height / 2;
+          node.children.forEach((child) => {
+            max = Math.max(max, getSubtreeMaxBottom(child));
+          });
+          return max;
+        };
+
+        const conditionsBottom =
+          flowNode.children.length > 0
+            ? Math.max(...flowNode.children.map(getSubtreeMaxBottom))
+            : y + flowNode.height / 2;
+
+        const continueY =
+          conditionsBottom + VERTICAL_SPACING + continueDimensions.height / 2;
+
+        const continueChild = buildFlowTree(
+          continueNode,
+          x,
+          continueY,
+          level + 1,
+          flowNode,
+          resolved.visitedPaths,
+        );
+
+        if (continueChild) {
+          flowNode.children.push(continueChild);
+        }
+      }
+    } else if (currentNode.type === "decision") {
       if (currentNode.conditions && currentNode.conditions.length > 0) {
         const childWidths = currentNode.conditions.map((condition) =>
           measureSubtreeWidth(condition, resolved.visitedPaths),
@@ -637,8 +788,133 @@ export function Flowchart({
     const nodes = getAllNodes(path, allPaths);
     const connections: Connection[] = [];
 
+    const loopNodes = nodes.filter((node) => node.type === "condition-loop");
+
+    loopNodes.forEach((loopNode) => {
+      if (loopNode.children.length === 0) return;
+
+      const loopChildren = loopNode.children.filter(
+        (child) => child.type === "condition",
+      );
+      // The continue branch is the single, unlabeled child reached once every
+      // loop condition has passed -- everything else under a loop node is a
+      // labeled "condition" child.
+      const continueChild = loopNode.children.find(
+        (child) => child.type !== "condition",
+      );
+
+      if (continueChild) {
+        connections.push({
+          from: loopNode,
+          to: continueChild,
+          label: "Loop complete",
+        });
+      }
+
+      if (loopChildren.length === 0) return;
+
+      const first = loopChildren[0];
+      const last = loopChildren[loopChildren.length - 1];
+      // Each loop child is a "label" box (the condition itself); its
+      // description is rendered as its outcome child directly beneath it.
+      const getDescriptionNode = (labelNode: FlowNode) =>
+        labelNode.children.find((c) => c.type === "outcome") || labelNode;
+      const lastDescription = getDescriptionNode(last);
+
+      connections.push({
+        from: loopNode,
+        to: first,
+        label: first.conditionLabel,
+        fromAnchor: { x: loopNode.x - loopNode.width / 2, y: loopNode.y },
+        toAnchor: { x: first.x - first.width / 2, y: first.y },
+      });
+
+      for (let i = 0; i < loopChildren.length - 1; i += 1) {
+        const current = loopChildren[i];
+        const next = loopChildren[i + 1];
+        const currentDescription = getDescriptionNode(current);
+        connections.push({
+          from: currentDescription,
+          to: next,
+          label: next.conditionLabel,
+          fromAnchor: {
+            x: currentDescription.x + currentDescription.width / 2,
+            y: currentDescription.y,
+          },
+          toAnchor: { x: next.x - next.width / 2, y: next.y },
+        });
+      }
+
+      const clearanceX =
+        last.x + Math.max(last.width, lastDescription.width) / 2 + 40;
+      const aboveLabelY = last.y - last.height / 2 - 40;
+
+      connections.push({
+        from: lastDescription,
+        to: loopNode,
+        label: last.conditionLabel,
+        fromAnchor: {
+          x: lastDescription.x + lastDescription.width / 2,
+          y: lastDescription.y,
+        },
+        toAnchor: { x: loopNode.x + loopNode.width / 2, y: loopNode.y },
+        waypoints: [
+          {
+            x: lastDescription.x + lastDescription.width / 2,
+            y: lastDescription.y,
+          },
+          { x: clearanceX, y: lastDescription.y },
+          { x: clearanceX, y: aboveLabelY },
+          { x: loopNode.x + loopNode.width / 2, y: aboveLabelY },
+          { x: loopNode.x + loopNode.width / 2, y: loopNode.y },
+        ],
+      });
+
+      // The chain above (loop -> first, description -> next label, last
+      // description -> loop) represents "condition not yet resolved, keep
+      // checking" continuation path. It runs through each condition's
+      // description box. There is a second, distinct path that skips the
+      // description entirely and goes straight from one label to the next
+      // -- drawn here as a dashed line so the two paths are visually
+      // distinguishable instead of implying they're the same connection.
+      for (let i = 0; i < loopChildren.length - 1; i += 1) {
+        const current = loopChildren[i];
+        const next = loopChildren[i + 1];
+        connections.push({
+          from: current,
+          to: next,
+          label: next.conditionLabel,
+          variant: "labelChain",
+          fromAnchor: { x: current.x + current.width / 2, y: current.y },
+          toAnchor: { x: next.x - next.width / 2, y: next.y },
+        });
+      }
+
+      // The last label's dashed line doesn't need its own trip back to the
+      // loop -- it just needs to meet the solid line above, at the point
+      // where that line runs alongside the last label (x = clearanceX,
+      // same height as the label).
+      connections.push({
+        from: last,
+        to: loopNode,
+        label: last.conditionLabel,
+        variant: "labelChain",
+        fromAnchor: { x: last.x + last.width / 2, y: last.y },
+        toAnchor: { x: clearanceX, y: last.y },
+      });
+    });
+
     nodes.forEach((node) => {
+      if (node.type === "condition-loop") return;
+
       node.children.forEach((child) => {
+        if (
+          node.type === "condition" &&
+          child.parent?.type === "condition-loop"
+        ) {
+          return;
+        }
+
         connections.push({
           from: node,
           to: child,
@@ -770,47 +1046,95 @@ export function Flowchart({
     offsetX: number,
     offsetY: number,
   ) => {
-    const fromX = conn.from.x + offsetX;
-    const fromY = conn.from.y + offsetY + conn.from.height / 2;
-    const toX = conn.to.x + offsetX;
-    const toY = conn.to.y + offsetY - conn.to.height / 2;
+    const start = {
+      x: conn.fromAnchor?.x ?? conn.from.x,
+      y: conn.fromAnchor?.y ?? conn.from.y,
+    };
+    const end = {
+      x: conn.toAnchor?.x ?? conn.to.x,
+      y: conn.toAnchor?.y ?? conn.to.y,
+    };
+
+    const fromX = start.x + offsetX;
+    const fromY = start.y + offsetY;
+    const toX = end.x + offsetX;
+    const toY = end.y + offsetY;
 
     ctx.save();
     ctx.strokeStyle = "oklch(0.55 0.10 220)";
+    if (conn.variant === "labelChain") {
+      ctx.setLineDash([7, 6]);
+    }
     ctx.lineWidth = 3;
     ctx.lineCap = "round";
+    ctx.lineJoin = "round";
 
     ctx.beginPath();
     ctx.moveTo(fromX, fromY);
 
-    if (conn.from.type === "decision" && conn.to.type === "condition") {
-      const controlPointOffset = Math.abs(toX - fromX) * 0.3;
-      ctx.bezierCurveTo(
-        fromX,
-        fromY + controlPointOffset,
-        toX,
-        toY - controlPointOffset,
-        toX,
-        toY,
-      );
-    } else if (conn.from.type === "condition") {
-      ctx.bezierCurveTo(
-        fromX,
-        fromY + (toY - fromY) / 3,
-        toX,
-        toY - (toY - fromY) / 3,
-        toX,
-        toY,
-      );
+    if (conn.waypoints && conn.waypoints.length > 0) {
+      const rawPoints = [
+        { x: fromX, y: fromY },
+        ...conn.waypoints.map((point) => ({
+          x: point.x + offsetX,
+          y: point.y + offsetY,
+        })),
+        { x: toX, y: toY },
+      ];
+
+      const points: { x: number; y: number }[] = [];
+      rawPoints.forEach((point) => {
+        const last = points[points.length - 1];
+        if (!last || Math.hypot(point.x - last.x, point.y - last.y) > 0.5) {
+          points.push(point);
+        }
+      });
+
+      const cornerRadius = 18;
+      for (let i = 1; i < points.length - 1; i += 1) {
+        ctx.arcTo(
+          points[i].x,
+          points[i].y,
+          points[i + 1].x,
+          points[i + 1].y,
+          cornerRadius,
+        );
+      }
+      ctx.lineTo(points[points.length - 1].x, points[points.length - 1].y);
+    } else if (conn.fromAnchor || conn.toAnchor) {
+      const dx = toX - fromX;
+      const dy = toY - fromY;
+      const length = Math.hypot(dx, dy) || 1;
+      const bow = Math.min(length * 0.18, 28);
+      const nx = -dy / length;
+      const ny = dx / length;
+      const controlX = (fromX + toX) / 2 + nx * bow;
+      const controlY = (fromY + toY) / 2 + ny * bow;
+
+      ctx.quadraticCurveTo(controlX, controlY, toX, toY);
     } else {
-      ctx.bezierCurveTo(
-        fromX,
-        fromY + (toY - fromY) / 3,
-        toX,
-        toY - (toY - fromY) / 3,
-        toX,
-        toY,
-      );
+      const controlOffsetX = Math.abs(toX - fromX) * 0.45;
+      const controlOffsetY = Math.abs(toY - fromY) * 0.4;
+
+      if (conn.from.type === "decision" && conn.to.type === "condition") {
+        ctx.bezierCurveTo(
+          fromX,
+          fromY + controlOffsetY,
+          toX,
+          toY - controlOffsetY,
+          toX,
+          toY,
+        );
+      } else {
+        ctx.bezierCurveTo(
+          fromX,
+          fromY + (toY - fromY) / 3,
+          toX,
+          toY - (toY - fromY) / 3,
+          toX,
+          toY,
+        );
+      }
     }
 
     ctx.stroke();
@@ -825,7 +1149,13 @@ export function Flowchart({
   ) => {
     const x = node.x + offsetX;
     const y = node.y + offsetY;
-    const config = getFlowNodeConfig(node);
+    const visualType =
+      node.visualType ?? getVisualNodeType(node.type, node.parent?.type);
+    const config = getStyleConfigByType(
+      visualType,
+      node.outcomeType,
+      node.parent?.type,
+    );
     const isHovered = hoveredNode === node.id;
 
     ctx.save();
@@ -1280,23 +1610,86 @@ export function Flowchart({
   <g id="connections">\n`;
 
     connections.forEach((conn) => {
-      const fromX = conn.from.x + offsetX;
-      const fromY = conn.from.y + offsetY + conn.from.height / 2;
-      const toX = conn.to.x + offsetX;
-      const toY = conn.to.y + offsetY - conn.to.height / 2;
+      const start = {
+        x: (conn.fromAnchor?.x ?? conn.from.x) + offsetX,
+        y: (conn.fromAnchor?.y ?? conn.from.y) + offsetY,
+      };
+      const end = {
+        x: (conn.toAnchor?.x ?? conn.to.x) + offsetX,
+        y: (conn.toAnchor?.y ?? conn.to.y) + offsetY,
+      };
 
-      let path = `M ${fromX} ${fromY} `;
+      let path = `M ${start.x} ${start.y} `;
 
-      if (conn.from.type === "decision" && conn.to.type === "condition") {
-        const controlPointOffset = Math.abs(toX - fromX) * 0.3;
-        path += `C ${fromX} ${fromY + controlPointOffset}, ${toX} ${toY - controlPointOffset}, ${toX} ${toY}`;
-      } else if (conn.from.type === "condition") {
-        path += `C ${fromX} ${fromY + (toY - fromY) / 3}, ${toX} ${toY - (toY - fromY) / 3}, ${toX} ${toY}`;
+      if (conn.waypoints && conn.waypoints.length > 0) {
+        const rawPoints = [
+          start,
+          ...conn.waypoints.map((point) => ({
+            x: point.x + offsetX,
+            y: point.y + offsetY,
+          })),
+          end,
+        ];
+
+        const points: { x: number; y: number }[] = [];
+        rawPoints.forEach((point) => {
+          const last = points[points.length - 1];
+          if (!last || Math.hypot(point.x - last.x, point.y - last.y) > 0.5) {
+            points.push(point);
+          }
+        });
+
+        const cornerRadius = 18;
+        for (let i = 1; i < points.length - 1; i += 1) {
+          const prev = points[i - 1];
+          const corner = points[i];
+          const next = points[i + 1];
+
+          const toPrev = { x: prev.x - corner.x, y: prev.y - corner.y };
+          const toNext = { x: next.x - corner.x, y: next.y - corner.y };
+          const prevLen = Math.hypot(toPrev.x, toPrev.y) || 1;
+          const nextLen = Math.hypot(toNext.x, toNext.y) || 1;
+          const r = Math.min(cornerRadius, prevLen / 2, nextLen / 2);
+
+          const beforeCorner = {
+            x: corner.x + (toPrev.x / prevLen) * r,
+            y: corner.y + (toPrev.y / prevLen) * r,
+          };
+          const afterCorner = {
+            x: corner.x + (toNext.x / nextLen) * r,
+            y: corner.y + (toNext.y / nextLen) * r,
+          };
+
+          path += `L ${beforeCorner.x} ${beforeCorner.y} Q ${corner.x} ${corner.y}, ${afterCorner.x} ${afterCorner.y} `;
+        }
+
+        const lastPoint = points[points.length - 1];
+        path += `L ${lastPoint.x} ${lastPoint.y}`;
+      } else if (conn.fromAnchor || conn.toAnchor) {
+        const dx = end.x - start.x;
+        const dy = end.y - start.y;
+        const length = Math.hypot(dx, dy) || 1;
+        const bow = Math.min(length * 0.18, 28);
+        const nx = -dy / length;
+        const ny = dx / length;
+        const controlX = (start.x + end.x) / 2 + nx * bow;
+        const controlY = (start.y + end.y) / 2 + ny * bow;
+
+        path += `Q ${controlX} ${controlY}, ${end.x} ${end.y}`;
+      } else if (
+        conn.from.type === "decision" &&
+        conn.to.type === "condition"
+      ) {
+        const controlPointOffset = Math.abs(end.x - start.x) * 0.3;
+        path += `C ${start.x} ${start.y + controlPointOffset}, ${end.x} ${end.y - controlPointOffset}, ${end.x} ${end.y}`;
       } else {
-        path += `C ${fromX} ${fromY + (toY - fromY) / 3}, ${toX} ${toY - (toY - fromY) / 3}, ${toX} ${toY}`;
+        path += `C ${start.x} ${start.y + (end.y - start.y) / 3}, ${end.x} ${end.y - (end.y - start.y) / 3}, ${end.x} ${end.y}`;
       }
 
-      svg += `    <path d="${path}" stroke="oklch(0.55 0.10 220)" stroke-width="3" fill="none" stroke-linecap="round"/>\n`;
+      const dashAttr =
+        conn.variant === "labelChain" ? ' stroke-dasharray="7,6"' : "";
+
+      svg += `    <path d="${path}" stroke="oklch(0.55 0.10 220)" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"${dashAttr}/>\n`;
     });
 
     svg += `  </g>
